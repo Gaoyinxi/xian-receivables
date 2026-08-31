@@ -1,0 +1,10 @@
+# This project defaults to Luna for implementation work. Complex decisions are
+# escalated explicitly to the Sol custom agent according to AGENTS.md.
+model = "gpt-5.6-luna"
+model_reasoning_effort = "medium"
+
+[agents]
+enabled = true
+default_subagent_model = "gpt-5.6-luna"
+default_subagent_reasoning_effort = "medium"
+max_concurrent_threads_per_session = 3

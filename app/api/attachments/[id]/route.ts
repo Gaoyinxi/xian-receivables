@@ -29,6 +29,7 @@ export async function GET(
           attachment.fileName,
         )}`,
         'Cache-Control': 'private, no-store',
+        'X-Content-Type-Options': 'nosniff',
       },
     });
   } catch (error) {

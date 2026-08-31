@@ -14,10 +14,7 @@ function forbidden(): never {
   throw new BusinessError('FORBIDDEN', '无权操作其他区县或当前功能', 403);
 }
 
-export function assertCanRead(
-  session: DemoSession,
-  districtId: string,
-): void {
+export function assertCanRead(session: DemoSession, districtId: string): void {
   if (!canReadDistrict(session.role, session.districtId, districtId)) {
     forbidden();
   }
@@ -31,9 +28,7 @@ export function assertCanManageReceivable(
   session: DemoSession,
   districtId: string,
 ): void {
-  if (
-    !canManageReceivable(session.role, session.districtId, districtId)
-  ) {
+  if (!canManageReceivable(session.role, session.districtId, districtId)) {
     forbidden();
   }
 }

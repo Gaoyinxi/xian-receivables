@@ -3,10 +3,8 @@ import { getRawDb } from '@/db/index';
 import {
   calculateLegalRiskLevel,
   calculateRiskLevel,
-  calculateWriteoffStatus,
   formatIsoDate,
   overdueDays,
-  shouldArchiveProject,
 } from '../domain';
 import type {
   AttachmentRecord,
@@ -20,7 +18,6 @@ import type {
   ReceiptRecord,
   ReceivableRecord,
   RiskRuleRecord,
-  Role,
 } from '../types';
 import { BusinessError } from './api';
 
@@ -266,11 +263,10 @@ export async function getBootstrapData(
       0,
       Number(receivable.amountCents) - receivedAmountCents,
     );
-    const days = overdueDays(
-      receivable.dueDate,
-      today,
-      receivable.writeoffStatus,
-    );
+    const days =
+      receivable.confirmationStatus === 'DRAFT'
+        ? 0
+        : overdueDays(receivable.dueDate, today, receivable.writeoffStatus);
     const referenceDate =
       receivable.latestCollectionDate ?? (days > 0 ? receivable.dueDate : null);
     return {
@@ -281,18 +277,24 @@ export async function getBootstrapData(
       sequenceNo: Number(receivable.sequenceNo),
       termDays: Number(receivable.termDays),
       overdueDays: days,
-      riskLevel: calculateRiskLevel(
-        receivable.dueDate,
-        today,
-        receivable.writeoffStatus,
-        riskRules,
-      ),
-      legalRiskLevel: calculateLegalRiskLevel(
-        referenceDate,
-        today,
-        receivable.writeoffStatus,
-        riskRules,
-      ),
+      riskLevel:
+        receivable.confirmationStatus === 'DRAFT'
+          ? 'NONE'
+          : calculateRiskLevel(
+              receivable.dueDate,
+              today,
+              receivable.writeoffStatus,
+              riskRules,
+            ),
+      legalRiskLevel:
+        receivable.confirmationStatus === 'DRAFT'
+          ? null
+          : calculateLegalRiskLevel(
+              referenceDate,
+              today,
+              receivable.writeoffStatus,
+              riskRules,
+            ),
       collectionMissing:
         days > 0 &&
         !receivable.latestCollectionDate &&
@@ -412,11 +414,16 @@ export async function getReceiptScope(id: string): Promise<{
   receivableId: string;
   districtId: string;
   status: string;
+  amountCents: number;
+  receivedDate: string;
+  note: string | null;
+  attachmentId: string | null;
 }> {
   const row = await getRawDb()
     .prepare(
       `SELECT rr.id, rr.receivable_id AS receivableId,
-        p.district_id AS districtId, rr.status
+        p.district_id AS districtId, rr.status, rr.amount_cents AS amountCents,
+        rr.received_date AS receivedDate, rr.note, rr.attachment_id AS attachmentId
       FROM receipts rr
       JOIN receivables r ON r.id = rr.receivable_id
       JOIN projects p ON p.id = r.project_id
@@ -428,6 +435,10 @@ export async function getReceiptScope(id: string): Promise<{
       receivableId: string;
       districtId: string;
       status: string;
+      amountCents: number;
+      receivedDate: string;
+      note: string | null;
+      attachmentId: string | null;
     }>();
   if (!row) throw new BusinessError('RECEIPT_NOT_FOUND', '未找到回款记录', 404);
   return row;
@@ -438,11 +449,16 @@ export async function getCollectionScope(id: string): Promise<{
   receivableId: string;
   districtId: string;
   status: string;
+  actionType: string;
+  actionDate: string;
+  note: string | null;
+  attachmentId: string | null;
 }> {
   const row = await getRawDb()
     .prepare(
       `SELECT ce.id, ce.receivable_id AS receivableId,
-        p.district_id AS districtId, ce.status
+        p.district_id AS districtId, ce.status, ce.action_type AS actionType,
+        ce.action_date AS actionDate, ce.note, ce.attachment_id AS attachmentId
       FROM collection_events ce
       JOIN receivables r ON r.id = ce.receivable_id
       JOIN projects p ON p.id = r.project_id
@@ -454,6 +470,10 @@ export async function getCollectionScope(id: string): Promise<{
       receivableId: string;
       districtId: string;
       status: string;
+      actionType: string;
+      actionDate: string;
+      note: string | null;
+      attachmentId: string | null;
     }>();
   if (!row) {
     throw new BusinessError('COLLECTION_NOT_FOUND', '未找到催缴记录', 404);
@@ -494,113 +514,6 @@ export async function getAttachmentScope(id: string): Promise<{
       ? await getProjectScope(attachment.entityId)
       : await getReceivableScope(attachment.entityId);
   return { ...attachment, districtId: scope.districtId };
-}
-
-export async function appendAudit(input: {
-  districtId: string | null;
-  entityType: string;
-  entityId: string;
-  action: string;
-  fieldName?: string | null;
-  oldValue?: unknown;
-  newValue?: unknown;
-  reason?: string | null;
-  source: string;
-  actorRole: Role;
-  actorName: string;
-}): Promise<void> {
-  const serialize = (value: unknown) =>
-    value === undefined || value === null
-      ? null
-      : typeof value === 'string'
-        ? value
-        : JSON.stringify(value);
-  await getRawDb()
-    .prepare(
-      `INSERT INTO audit_logs (
-        id, district_id, entity_type, entity_id, action, field_name,
-        old_value, new_value, reason, source, actor_role, actor_name, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .bind(
-      crypto.randomUUID(),
-      input.districtId,
-      input.entityType,
-      input.entityId,
-      input.action,
-      input.fieldName ?? null,
-      serialize(input.oldValue),
-      serialize(input.newValue),
-      input.reason ?? null,
-      input.source,
-      input.actorRole,
-      input.actorName,
-      new Date().toISOString(),
-    )
-    .run();
-}
-
-export async function refreshReceivableAndProject(
-  receivableId: string,
-): Promise<void> {
-  const scope = await getReceivableScope(receivableId);
-  const rows = await all<{ amountCents: number }>(
-    `SELECT amount_cents AS amountCents FROM receipts
-      WHERE receivable_id = ? AND status = 'VALID'`,
-    [receivableId],
-  );
-  const writeoffStatus = calculateWriteoffStatus(
-    scope.amountCents,
-    rows.map((row) => Number(row.amountCents)),
-  );
-  const now = new Date().toISOString();
-  await getRawDb()
-    .prepare(
-      'UPDATE receivables SET writeoff_status = ?, updated_at = ? WHERE id = ?',
-    )
-    .bind(writeoffStatus, now, receivableId)
-    .run();
-
-  const projectState = await getRawDb()
-    .prepare(
-      `SELECT COUNT(*) AS total,
-        SUM(CASE WHEN writeoff_status != 'PAID' THEN 1 ELSE 0 END) AS openCount
-      FROM receivables WHERE project_id = ?`,
-    )
-    .bind(scope.projectId)
-    .first<{ total: number; openCount: number }>();
-  const shouldArchive = shouldArchiveProject(
-    Number(projectState?.total ?? 0),
-    Number(projectState?.openCount ?? 0),
-  );
-  await getRawDb()
-    .prepare('UPDATE projects SET archived_at = ?, updated_at = ? WHERE id = ?')
-    .bind(shouldArchive ? now : null, now, scope.projectId)
-    .run();
-}
-
-export async function generateProjectCode(): Promise<string> {
-  const year = todayInShanghai().slice(0, 4);
-  const row = await getRawDb()
-    .prepare(
-      `SELECT MAX(CAST(SUBSTR(project_code, -4) AS INTEGER)) AS maxSequence
-      FROM projects WHERE project_code LIKE ?`,
-    )
-    .bind(`XM-${year}-%`)
-    .first<{ maxSequence: number | null }>();
-  return `XM-${year}-${String(Number(row?.maxSequence ?? 0) + 1).padStart(4, '0')}`;
-}
-
-export async function generateReceivableCode(): Promise<string> {
-  const month = todayInShanghai().replaceAll('-', '').slice(0, 6);
-  const row = await getRawDb()
-    .prepare(
-      `SELECT MAX(CAST(SUBSTR(receivable_code, -4) AS INTEGER)) AS maxSequence
-      FROM receivables WHERE receivable_code LIKE ?`,
-    )
-    .bind(`YS-${month}-%`)
-    .first<{ maxSequence: number | null }>();
-  return `YS-${month}-${String(Number(row?.maxSequence ?? 0) + 1).padStart(4, '0')}`;
 }
 
 export function currentBusinessDate(): string {

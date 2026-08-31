@@ -1,6 +1,13 @@
 'use client';
 
 import * as React from 'react';
+import { ReceivableDetail } from '@/components/receivables/receivable-detail';
+import {
+  filterReceivables,
+  receivablesCsv,
+  RECEIVABLE_FILTERS,
+  type ReceivableFilter,
+} from '@/lib/workbench';
 import {
   AlertTriangle,
   Archive,
@@ -110,6 +117,18 @@ type NavItem = {
 };
 
 type Notice = { type: 'success' | 'error'; title: string; message: string };
+
+const viewTitles: Record<View, string> = {
+  dashboard: '应收工作台',
+  projects: '项目管理',
+  receivables: '应收管理',
+  receipts: '回款流水',
+  collections: '催缴中心',
+  imports: '导入中心',
+  audit: '审计日志',
+  risk: '风险设置',
+  history: '历史项目',
+};
 
 class ApiClientError extends Error {
   constructor(
@@ -475,9 +494,12 @@ function ApplicationHeader({
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <div className="app-identity-cluster hidden md:flex">
+        <fieldset
+          disabled={refreshing}
+          className="app-identity-cluster hidden md:flex"
+        >
           <IdentityControls data={data} onChange={onChangeIdentity} />
-        </div>
+        </fieldset>
         <Button
           variant="ghost"
           size="icon"
@@ -560,9 +582,45 @@ export function ReceivablesApp() {
     React.useState<CollectionRecord | null>(null);
   const [selectedProject, setSelectedProject] =
     React.useState<ProjectRecord | null>(null);
+  const [selectedReceivableId, setSelectedReceivableId] = React.useState<
+    string | null
+  >(null);
+  const [operationTarget, setOperationTarget] = React.useState<string | null>(
+    null,
+  );
+  const [receivableStatus, setReceivableStatus] =
+    React.useState<ReceivableFilter>('ALL');
+  const [confirmingId, setConfirmingId] = React.useState<string | null>(null);
+  const identitySwitch = React.useRef(false);
+
+  function navigate(next: View) {
+    setView(next);
+    window.location.hash = next;
+  }
+
+  function openReceivables(status: ReceivableFilter) {
+    setReceivableStatus(status);
+    navigate('receivables');
+  }
+
+  React.useEffect(() => {
+    const restoreView = () => {
+      const next = window.location.hash.slice(1);
+      if (next === 'main-content') return;
+      setView(Object.hasOwn(viewTitles, next) ? (next as View) : 'dashboard');
+    };
+    restoreView();
+    window.addEventListener('hashchange', restoreView);
+    return () => window.removeEventListener('hashchange', restoreView);
+  }, []);
+
+  React.useEffect(() => {
+    document.title = `${viewTitles[view]} · 项目应收管理系统`;
+  }, [view]);
 
   const load = React.useCallback(async (background = false) => {
     if (background) setRefreshing(true);
+    else setLoading(true);
     try {
       const next = await apiRequest<BootstrapData>('/api/bootstrap');
       setData(next);
@@ -613,6 +671,18 @@ export function ReceivablesApp() {
   );
 
   async function changeIdentity(role: Role, districtCode?: string | null) {
+    if (identitySwitch.current) return;
+    identitySwitch.current = true;
+    setRefreshing(true);
+    setProjectDialog(false);
+    setNodeDialog(false);
+    setReceiptDialog(false);
+    setCollectionDialog(false);
+    setReceiptCorrection(null);
+    setCollectionCorrection(null);
+    setSelectedProject(null);
+    setSelectedReceivableId(null);
+    setOperationTarget(null);
     try {
       await apiRequest('/api/session', {
         method: 'POST',
@@ -633,7 +703,39 @@ export function ReceivablesApp() {
         title: '身份切换失败',
         message: error instanceof Error ? error.message : '请稍后重试',
       });
+    } finally {
+      identitySwitch.current = false;
+      setRefreshing(false);
     }
+  }
+
+  if (!loading && !data) {
+    return (
+      <main className="app-loading-screen">
+        <section
+          className="app-panel max-w-md p-6"
+          aria-labelledby="load-error-title"
+        >
+          <AlertTriangle
+            className="mb-3 size-6 text-destructive"
+            aria-hidden="true"
+          />
+          <h1 id="load-error-title" className="text-lg font-semibold">
+            暂时无法载入工作台
+          </h1>
+          <p
+            role="alert"
+            className="my-3 text-sm leading-6 text-muted-foreground"
+          >
+            {notice?.message || '请检查网络连接后重试，已有数据不会被清除。'}
+          </p>
+          <Button onClick={() => void load()}>
+            <RefreshCw />
+            重新加载
+          </Button>
+        </section>
+      </main>
+    );
   }
 
   if (loading || !data) {
@@ -686,7 +788,15 @@ export function ReceivablesApp() {
   ];
 
   const content = {
-    dashboard: <DashboardView data={data} onNavigate={setView} />,
+    dashboard: (
+      <DashboardView
+        data={data}
+        onNavigate={navigate}
+        onFilter={openReceivables}
+        onNewProject={() => setProjectDialog(true)}
+        onSelect={setSelectedReceivableId}
+      />
+    ),
     projects: (
       <ProjectsView
         data={data}
@@ -708,7 +818,13 @@ export function ReceivablesApp() {
     receivables: (
       <ReceivablesView
         data={data}
+        status={receivableStatus}
+        onStatusChange={setReceivableStatus}
+        onSelect={setSelectedReceivableId}
+        confirmingId={confirmingId}
         onConfirm={async (id) => {
+          if (confirmingId) return;
+          setConfirmingId(id);
           try {
             await apiRequest('/api/receivables/confirm', {
               method: 'POST',
@@ -721,6 +837,8 @@ export function ReceivablesApp() {
               title: '确认失败',
               message: error instanceof Error ? error.message : '请稍后重试',
             });
+          } finally {
+            setConfirmingId(null);
           }
         }}
         onNewNode={() => setNodeDialog(true)}
@@ -729,14 +847,20 @@ export function ReceivablesApp() {
     receipts: (
       <ReceiptsView
         data={data}
-        onNew={() => setReceiptDialog(true)}
+        onNew={() => {
+          setOperationTarget(null);
+          setReceiptDialog(true);
+        }}
         onCorrect={setReceiptCorrection}
       />
     ),
     collections: (
       <CollectionsView
         data={data}
-        onNew={() => setCollectionDialog(true)}
+        onNew={() => {
+          setOperationTarget(null);
+          setCollectionDialog(true);
+        }}
         onCorrect={setCollectionCorrection}
       />
     ),
@@ -746,12 +870,18 @@ export function ReceivablesApp() {
   }[view];
 
   return (
-    <div className="app-shell">
+    <div
+      className="app-shell"
+      key={`${data.session.role}:${data.session.districtId}`}
+    >
+      <a className="app-skip-link" href="#main-content">
+        跳转到主要内容
+      </a>
       <DesktopSidebar
         navItems={navItems}
         governance={governance}
         activeView={view}
-        onNavigate={setView}
+        onNavigate={navigate}
       />
 
       <div className="lg:pl-[232px]">
@@ -768,13 +898,18 @@ export function ReceivablesApp() {
           navItems={navItems}
           governance={governance}
           activeView={view}
-          onNavigate={setView}
+          onNavigate={navigate}
           onChangeIdentity={(role, districtCode) =>
             void changeIdentity(role, districtCode)
           }
         />
 
-        <main className="app-main">
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="app-main"
+          aria-busy={refreshing}
+        >
           {notice ? (
             <Alert
               role={notice.type === 'error' ? 'alert' : 'status'}
@@ -821,9 +956,12 @@ export function ReceivablesApp() {
         onDone={done}
       />
       <ReceiptDialog
-        key={receiptDialog ? 'receipt-open' : 'receipt-closed'}
+        key={
+          receiptDialog ? `receipt-open-${operationTarget}` : 'receipt-closed'
+        }
         open={receiptDialog}
         data={data}
+        initialReceivableId={operationTarget}
         onOpenChange={setReceiptDialog}
         onDone={done}
       />
@@ -835,9 +973,14 @@ export function ReceivablesApp() {
         onDone={done}
       />
       <CollectionDialog
-        key={collectionDialog ? 'collection-open' : 'collection-closed'}
+        key={
+          collectionDialog
+            ? `collection-open-${operationTarget}`
+            : 'collection-closed'
+        }
         open={collectionDialog}
         data={data}
+        initialReceivableId={operationTarget}
         onOpenChange={setCollectionDialog}
         onDone={done}
       />
@@ -855,6 +998,24 @@ export function ReceivablesApp() {
         onOpenChange={(open) => !open && setSelectedProject(null)}
         onDone={done}
       />
+      <ReceivableDetail
+        item={
+          data.receivables.find((item) => item.id === selectedReceivableId) ??
+          null
+        }
+        data={data}
+        onClose={() => setSelectedReceivableId(null)}
+        onReceipt={(id) => {
+          setSelectedReceivableId(null);
+          setOperationTarget(id);
+          setReceiptDialog(true);
+        }}
+        onCollection={(id) => {
+          setSelectedReceivableId(null);
+          setOperationTarget(id);
+          setCollectionDialog(true);
+        }}
+      />
     </div>
   );
 }
@@ -862,9 +1023,15 @@ export function ReceivablesApp() {
 function DashboardView({
   data,
   onNavigate,
+  onFilter,
+  onNewProject,
+  onSelect,
 }: {
   data: BootstrapData;
   onNavigate: (view: View) => void;
+  onFilter: (filter: ReceivableFilter) => void;
+  onNewProject: () => void;
+  onSelect: (id: string) => void;
 }) {
   const metrics = [
     {
@@ -874,6 +1041,7 @@ function DashboardView({
       detail: '需由市级管理员确认',
       icon: FileClock,
       tone: 'brand',
+      filter: 'DRAFT' as const,
     },
     {
       label: '剩余应收',
@@ -882,6 +1050,7 @@ function DashboardView({
       detail: `涉及 ${data.summary.totalReceivableCount} 笔应收`,
       icon: CircleDollarSign,
       tone: 'neutral',
+      filter: 'OUTSTANDING' as const,
     },
     {
       label: '部分回款',
@@ -890,6 +1059,7 @@ function DashboardView({
       detail: `累计实收 ${formatWan(data.summary.receivedAmountCents)} 万元`,
       icon: TrendingUp,
       tone: 'positive',
+      filter: 'PARTIAL' as const,
     },
     {
       label: '逾期未留痕',
@@ -898,9 +1068,11 @@ function DashboardView({
       detail: '需优先安排催缴',
       icon: AlertTriangle,
       tone: 'warning',
+      filter: 'UNCOLLECTED' as const,
     },
   ];
   const visibleReceivables = [...data.receivables]
+    .filter((item) => item.writeoffStatus !== 'PAID')
     .sort((a, b) => {
       const risk = { RED: 4, YELLOW: 3, BLUE: 2, NONE: 1 };
       return risk[b.riskLevel] - risk[a.riskLevel];
@@ -920,7 +1092,7 @@ function DashboardView({
               下载模板
             </Button>
             {data.session.role === 'CITY_ADMIN' ? (
-              <Button onClick={() => onNavigate('projects')}>
+              <Button onClick={onNewProject}>
                 <Plus />
                 新建项目
               </Button>
@@ -928,33 +1100,31 @@ function DashboardView({
           </>
         }
       />
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section
+        className="app-overview-strip"
+        aria-label="应收运营指标，点击查看对应明细"
+      >
         {metrics.map((metric) => (
-          <Card key={metric.label} className="app-metric-card gap-3 py-4">
-            <CardHeader className="px-4">
-              <CardTitle className="text-[13px] font-medium text-[var(--app-text-soft)]">
-                {metric.label}
-              </CardTitle>
-              <CardAction>
-                <div className="app-metric-icon" data-tone={metric.tone}>
-                  <metric.icon className="size-[18px]" />
-                </div>
-              </CardAction>
-            </CardHeader>
-            <CardContent className="px-4">
-              <div className="flex items-end gap-1.5">
-                <span className="text-[26px] font-semibold leading-none tracking-[-0.025em] text-[var(--app-text-strong)]">
-                  {metric.value}
-                </span>
-                <span className="pb-0.5 text-xs text-muted-foreground">
-                  {metric.unit}
-                </span>
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                {metric.detail}
-              </p>
-            </CardContent>
-          </Card>
+          <button
+            key={metric.label}
+            type="button"
+            className="app-overview-metric"
+            onClick={() => onFilter(metric.filter)}
+          >
+            <span className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+              {metric.label}
+              <ChevronRight aria-hidden="true" className="size-3.5" />
+            </span>
+            <span className="mt-4 flex items-baseline gap-1.5">
+              <span className="app-overview-value">{metric.value}</span>
+              <span className="text-xs text-muted-foreground">
+                {metric.unit}
+              </span>
+            </span>
+            <span className="mt-3 block text-[11px] text-muted-foreground">
+              {metric.detail}
+            </span>
+          </button>
         ))}
       </section>
       <div className="mt-4 grid grid-cols-1 gap-4 2xl:grid-cols-[minmax(0,1fr)_310px]">
@@ -978,7 +1148,18 @@ function DashboardView({
             </CardAction>
           </CardHeader>
           <CardContent className="px-0">
-            <ReceivableTable rows={visibleReceivables} compact />
+            {visibleReceivables.length ? (
+              <ReceivableTable
+                rows={visibleReceivables}
+                compact
+                onSelect={onSelect}
+              />
+            ) : (
+              <EmptyState
+                title="暂无待处理应收"
+                description="所有已登记应收均已结清，可在历史项目中查阅。"
+              />
+            )}
           </CardContent>
         </Card>
         <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-1">
@@ -996,7 +1177,7 @@ function DashboardView({
             <CardContent className="space-y-2 px-4">
               <button
                 type="button"
-                onClick={() => onNavigate('receivables')}
+                onClick={() => onFilter('DRAFT')}
                 className="app-action-row"
               >
                 <span className="app-action-count" data-tone="neutral">
@@ -1007,7 +1188,7 @@ function DashboardView({
               </button>
               <button
                 type="button"
-                onClick={() => onNavigate('collections')}
+                onClick={() => onFilter('UNCOLLECTED')}
                 className="app-action-row"
               >
                 <span className="app-action-count" data-tone="warning">
@@ -1037,37 +1218,45 @@ function DistrictProgress({ data }: { data: BootstrapData }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3.5 px-4">
-        {data.districts.map((district) => {
-          const projects = data.projects.filter(
-            (item) => item.districtId === district.id,
-          );
-          const receivable = projects.reduce(
-            (sum, item) => sum + item.receivableAmountCents,
-            0,
-          );
-          const received = projects.reduce(
-            (sum, item) => sum + item.receivedAmountCents,
-            0,
-          );
-          const progress =
-            receivable > 0 ? Math.round((received / receivable) * 100) : 0;
-          return (
-            <div key={district.id}>
-              <div className="mb-1.5 flex items-center justify-between text-xs">
-                <span className="font-medium text-[var(--app-text)]">
-                  {district.name}
-                </span>
-                <span className="text-[var(--app-text-soft)]">{progress}%</span>
+        {data.districts
+          .filter(
+            (district) =>
+              data.session.role === 'CITY_ADMIN' ||
+              district.id === data.session.districtId,
+          )
+          .map((district) => {
+            const projects = data.projects.filter(
+              (item) => item.districtId === district.id,
+            );
+            const receivable = projects.reduce(
+              (sum, item) => sum + item.receivableAmountCents,
+              0,
+            );
+            const received = projects.reduce(
+              (sum, item) => sum + item.receivedAmountCents,
+              0,
+            );
+            const progress =
+              receivable > 0 ? Math.round((received / receivable) * 100) : 0;
+            return (
+              <div key={district.id}>
+                <div className="mb-1.5 flex items-center justify-between text-xs">
+                  <span className="font-medium text-[var(--app-text)]">
+                    {district.name}
+                  </span>
+                  <span className="text-[var(--app-text-soft)]">
+                    {progress}%
+                  </span>
+                </div>
+                <progress
+                  className="app-progress-native"
+                  aria-label={`${district.name}回款进度`}
+                  max={100}
+                  value={progress}
+                />
               </div>
-              <progress
-                className="app-progress-native"
-                aria-label={`${district.name}回款进度`}
-                max={100}
-                value={progress}
-              />
-            </div>
-          );
-        })}
+            );
+          })}
       </CardContent>
     </Card>
   );
@@ -1077,10 +1266,14 @@ function ReceivableTable({
   rows,
   compact,
   onConfirm,
+  confirmingId,
+  onSelect,
 }: {
   rows: ReceivableRecord[];
   compact?: boolean;
   onConfirm?: (id: string) => void;
+  confirmingId?: string | null;
+  onSelect?: (id: string) => void;
 }) {
   return (
     <Table aria-label={compact ? '高风险应收事项' : '应收明细'}>
@@ -1101,7 +1294,18 @@ function ReceivableTable({
         {rows.map((item) => (
           <TableRow key={item.id}>
             <TableCell className="py-3 pl-5">
-              <p className="app-data-title">{item.projectName}</p>
+              {onSelect ? (
+                <button
+                  type="button"
+                  className="app-data-title app-table-link"
+                  onClick={() => onSelect(item.id)}
+                  aria-label={`查看${item.projectName} ${item.receivableCode}详情`}
+                >
+                  {item.projectName}
+                </button>
+              ) : (
+                <p className="app-data-title">{item.projectName}</p>
+              )}
               <p className="app-data-code">{item.receivableCode}</p>
             </TableCell>
             <TableCell className="text-xs">{item.districtName}</TableCell>
@@ -1133,8 +1337,18 @@ function ReceivableTable({
             {!compact ? (
               <TableCell className="pr-5">
                 {item.confirmationStatus === 'DRAFT' && onConfirm ? (
-                  <Button size="sm" onClick={() => onConfirm(item.id)}>
-                    <Check /> 确认
+                  <Button
+                    size="sm"
+                    disabled={Boolean(confirmingId)}
+                    aria-busy={confirmingId === item.id}
+                    onClick={() => onConfirm(item.id)}
+                  >
+                    {confirmingId === item.id ? (
+                      <LoaderCircle className="animate-spin" />
+                    ) : (
+                      <Check />
+                    )}{' '}
+                    确认
                   </Button>
                 ) : (
                   <span className="text-xs text-muted-foreground">
@@ -1319,29 +1533,38 @@ function ReceivablesView({
   data,
   onConfirm,
   onNewNode,
+  status,
+  onStatusChange,
+  onSelect,
+  confirmingId,
 }: {
   data: BootstrapData;
   onConfirm: (id: string) => void;
   onNewNode: () => void;
+  status: ReceivableFilter;
+  onStatusChange: (status: ReceivableFilter) => void;
+  onSelect: (id: string) => void;
+  confirmingId: string | null;
 }) {
   const [query, setQuery] = React.useState('');
-  const [status, setStatus] = React.useState('ALL');
-  const rows = data.receivables.filter((item) => {
-    const matchesQuery = [
-      item.receivableCode,
-      item.projectName,
-      item.contractCode,
-    ]
-      .join(' ')
-      .toLowerCase()
-      .includes(query.toLowerCase());
-    const matchesStatus =
-      status === 'ALL' ||
-      item.confirmationStatus === status ||
-      item.writeoffStatus === status ||
-      item.riskLevel === status;
-    return matchesQuery && matchesStatus;
+  const [districtId, setDistrictId] = React.useState('');
+  const rows = filterReceivables(data.receivables, {
+    query,
+    status,
+    districtId,
   });
+  const balance = rows.reduce((sum, row) => sum + row.remainingAmountCents, 0);
+
+  function downloadRows() {
+    const url = URL.createObjectURL(
+      new Blob([receivablesCsv(rows)], { type: 'text/csv;charset=utf-8;' }),
+    );
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `应收台账-${RECEIVABLE_FILTERS[status]}-${currentDate()}.csv`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
   return (
     <>
       <PageHeading
@@ -1358,7 +1581,7 @@ function ReceivablesView({
       />
       <DataPanel
         title="应收明细"
-        description={`共 ${rows.length} 笔`}
+        description={`共 ${rows.length} 笔 · 筛选余额 ${formatYuan(balance)}（含待确认）`}
         actions={
           <>
             <SearchField
@@ -1371,23 +1594,47 @@ function ReceivablesView({
             <NativeSelect
               aria-label="按应收状态筛选"
               value={status}
-              onChange={(e) => setStatus(e.target.value)}
+              onChange={(e) =>
+                onStatusChange(e.target.value as ReceivableFilter)
+              }
             >
-              <NativeSelectOption value="ALL">全部状态</NativeSelectOption>
-              <NativeSelectOption value="DRAFT">待确认</NativeSelectOption>
-              <NativeSelectOption value="UNPAID">未回款</NativeSelectOption>
-              <NativeSelectOption value="PARTIAL">部分回款</NativeSelectOption>
-              <NativeSelectOption value="PAID">已结清</NativeSelectOption>
-              <NativeSelectOption value="RED">红色风险</NativeSelectOption>
-              <NativeSelectOption value="YELLOW">黄色风险</NativeSelectOption>
-              <NativeSelectOption value="BLUE">蓝色风险</NativeSelectOption>
+              {Object.entries(RECEIVABLE_FILTERS).map(([value, label]) => (
+                <NativeSelectOption key={value} value={value}>
+                  {label}
+                </NativeSelectOption>
+              ))}
             </NativeSelect>
+            {data.session.role === 'CITY_ADMIN' ? (
+              <NativeSelect
+                value={districtId}
+                onChange={(e) => setDistrictId(e.target.value)}
+                aria-label="按归属区县筛选"
+              >
+                <NativeSelectOption value="">全部区县</NativeSelectOption>
+                {data.districts.map((district) => (
+                  <NativeSelectOption key={district.id} value={district.id}>
+                    {district.name}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            ) : null}
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!rows.length}
+              onClick={downloadRows}
+            >
+              <Download />
+              导出台账
+            </Button>
           </>
         }
       >
         {rows.length ? (
           <ReceivableTable
             rows={rows}
+            onSelect={onSelect}
+            confirmingId={confirmingId}
             onConfirm={
               data.session.role === 'CITY_ADMIN' ? onConfirm : undefined
             }
@@ -1641,6 +1888,21 @@ function CollectionsView({
 }
 
 function AuditView({ data }: { data: BootstrapData }) {
+  const [query, setQuery] = React.useState('');
+  const rows = data.auditLogs.filter((log) =>
+    [
+      log.entityId,
+      log.actorName,
+      log.reason,
+      entityLabels[log.entityType],
+      operationLabels[log.action],
+      log.oldValue,
+      log.newValue,
+    ]
+      .join(' ')
+      .toLowerCase()
+      .includes(query.trim().toLowerCase()),
+  );
   return (
     <>
       <PageHeading
@@ -1654,7 +1916,16 @@ function AuditView({ data }: { data: BootstrapData }) {
       />
       <DataPanel
         title="操作流水"
-        description={`共 ${data.auditLogs.length} 条审计记录`}
+        description={`匹配 ${rows.length} 条 · 展示权限范围内最近 300 条，完整日志持续保留`}
+        actions={
+          <SearchField
+            value={query}
+            onChange={setQuery}
+            label="搜索操作人、记录编号或变更内容"
+            placeholder="操作人 / 原因 / 变更内容"
+            className="w-[280px]"
+          />
+        }
       >
         <Table aria-label="审计操作日志">
           <TableHeader>
@@ -1670,7 +1941,7 @@ function AuditView({ data }: { data: BootstrapData }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data.auditLogs.map((log) => (
+            {rows.map((log) => (
               <TableRow key={log.id}>
                 <TableCell className="pl-5 text-xs">
                   {formatDateTime(log.createdAt)}
@@ -1690,12 +1961,22 @@ function AuditView({ data }: { data: BootstrapData }) {
                   {log.fieldName || '—'}
                 </TableCell>
                 <TableCell className="max-w-[260px]">
-                  <p className="truncate text-[11px] text-muted-foreground">
-                    {log.oldValue || '—'} → {log.newValue || '—'}
-                  </p>
+                  <details className="text-[11px]">
+                    <summary className="cursor-pointer text-primary">
+                      查看完整变更
+                    </summary>
+                    <dl className="mt-2 space-y-2 whitespace-pre-wrap break-all">
+                      <dt className="text-muted-foreground">记录 ID</dt>
+                      <dd>{log.entityId}</dd>
+                      <dt className="text-muted-foreground">原值</dt>
+                      <dd>{log.oldValue || '—'}</dd>
+                      <dt className="text-muted-foreground">新值</dt>
+                      <dd>{log.newValue || '—'}</dd>
+                    </dl>
+                  </details>
                 </TableCell>
                 <TableCell>
-                  <p className="max-w-[180px] truncate text-xs">
+                  <p className="max-w-[180px] whitespace-normal break-words text-xs">
                     {log.reason || '—'}
                   </p>
                   <p className="text-[10px] text-muted-foreground">
@@ -1936,6 +2217,10 @@ function ImportView({
     setPreview(null);
     if (!file.name.toLowerCase().endsWith('.xlsx')) {
       setError('请使用标准模板上传 .xlsx 文件');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setError('Excel 文件不能超过 10MB，请拆分后导入');
       return;
     }
     setBusy(true);
@@ -2543,11 +2828,13 @@ function NodeDialog({
 function ReceiptDialog({
   open,
   data,
+  initialReceivableId,
   onOpenChange,
   onDone,
 }: {
   open: boolean;
   data: BootstrapData;
+  initialReceivableId?: string | null;
   onOpenChange: (open: boolean) => void;
   onDone: (message: string) => Promise<void>;
 }) {
@@ -2561,7 +2848,10 @@ function ReceiptDialog({
     [data.receivables],
   );
   const [receivableId, setReceivableId] = React.useState(
-    () => candidates[0]?.id ?? '',
+    () =>
+      candidates.find((item) => item.id === initialReceivableId)?.id ??
+      candidates[0]?.id ??
+      '',
   );
   const [file, setFile] = React.useState<File | null>(null);
   const [uploaded, setUploaded] = React.useState<UploadedAttachment | null>(
@@ -2878,11 +3168,13 @@ function ReceiptCorrectionDialog({
 function CollectionDialog({
   open,
   data,
+  initialReceivableId,
   onOpenChange,
   onDone,
 }: {
   open: boolean;
   data: BootstrapData;
+  initialReceivableId?: string | null;
   onOpenChange: (open: boolean) => void;
   onDone: (message: string) => Promise<void>;
 }) {
@@ -2896,7 +3188,10 @@ function CollectionDialog({
     [data.receivables],
   );
   const [receivableId, setReceivableId] = React.useState(
-    () => candidates[0]?.id ?? '',
+    () =>
+      candidates.find((item) => item.id === initialReceivableId)?.id ??
+      candidates[0]?.id ??
+      '',
   );
   const [action, setAction] = React.useState<CollectionAction>('WECHAT');
   const [file, setFile] = React.useState<File | null>(null);

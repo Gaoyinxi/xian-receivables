@@ -4,11 +4,8 @@ import {
   assertCanCreateOperational,
   assertCanManageProject,
 } from '@/lib/server/authz';
-import {
-  appendAudit,
-  getProjectScope,
-  getReceivableScope,
-} from '@/lib/server/data';
+import { getProjectScope, getReceivableScope } from '@/lib/server/data';
+import { auditStatement } from '@/lib/server/mutations';
 import { requireSession } from '@/lib/server/session';
 
 const MAX_SIZE = 10 * 1024 * 1024;
@@ -36,7 +33,7 @@ export async function POST(request: Request) {
     const rawEntityType = form.get('entityType');
     const rawEntityId = form.get('entityId');
     const entityType = typeof rawEntityType === 'string' ? rawEntityType : '';
-    const entityId = typeof rawEntityId === 'string' ? rawEntityId : '';
+    let entityId = typeof rawEntityId === 'string' ? rawEntityId : '';
     if (!(file instanceof File)) {
       throw new BusinessError('FILE_REQUIRED', '请选择要上传的附件');
     }
@@ -54,21 +51,34 @@ export async function POST(request: Request) {
       );
     }
     if (file.size <= 0 || file.size > MAX_SIZE) {
-      throw new BusinessError(
-        'FILE_TOO_LARGE',
-        '单个附件不能超过 10MB',
-        413,
-      );
+      throw new BusinessError('FILE_TOO_LARGE', '单个附件不能超过 10MB', 413);
     }
 
+    const signature = new Uint8Array(await file.slice(0, 8).arrayBuffer());
+    const expected =
+      file.type === 'application/pdf'
+        ? [37, 80, 68, 70, 45]
+        : file.type === 'image/png'
+          ? [137, 80, 78, 71, 13, 10, 26, 10]
+          : [255, 216, 255];
+    if (!expected.every((byte, index) => signature[index] === byte)) {
+      throw new BusinessError(
+        'UNSUPPORTED_FILE_TYPE',
+        '文件内容与 PDF、JPG、PNG 格式不符，请重新选择',
+        415,
+      );
+    }
     let districtId: string;
     if (entityType === 'PROJECT') {
       assertCanManageProject(session);
-      districtId = (await getProjectScope(entityId)).districtId;
+      const scope = await getProjectScope(entityId);
+      districtId = scope.districtId;
+      entityId = scope.id;
     } else {
       const scope = await getReceivableScope(entityId);
       assertCanCreateOperational(session, scope.districtId);
       districtId = scope.districtId;
+      entityId = scope.id;
     }
 
     const id = crypto.randomUUID();
@@ -85,44 +95,46 @@ export async function POST(request: Request) {
     });
     const now = new Date().toISOString();
     try {
-      await getRawDb()
-        .prepare(
-          `INSERT INTO attachments (
+      const db = getRawDb();
+      await db.batch([
+        db
+          .prepare(
+            `INSERT INTO attachments (
             id, entity_type, entity_id, object_key, file_name, content_type,
             size_bytes, uploaded_by, created_at
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .bind(
-          id,
-          entityType,
-          entityId,
-          objectKey,
-          file.name,
-          contentType,
-          file.size,
-          session.id,
-          now,
-        )
-        .run();
+          )
+          .bind(
+            id,
+            entityType,
+            entityId,
+            objectKey,
+            file.name,
+            contentType,
+            file.size,
+            session.id,
+            now,
+          ),
+        auditStatement({
+          districtId,
+          entityType: 'ATTACHMENT',
+          entityId: id,
+          action: 'UPLOAD',
+          newValue: {
+            entityType,
+            entityId,
+            fileName: file.name,
+            sizeBytes: file.size,
+          },
+          source: 'UPLOAD',
+          actorRole: session.role,
+          actorName: session.displayName,
+        }),
+      ]);
     } catch (error) {
       await bucket.delete(objectKey);
       throw error;
     }
-    await appendAudit({
-      districtId,
-      entityType: 'ATTACHMENT',
-      entityId: id,
-      action: 'UPLOAD',
-      newValue: {
-        entityType,
-        entityId,
-        fileName: file.name,
-        sizeBytes: file.size,
-      },
-      source: 'UPLOAD',
-      actorRole: session.role,
-      actorName: session.displayName,
-    });
     return ok(
       {
         id,

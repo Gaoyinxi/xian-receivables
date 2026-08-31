@@ -73,7 +73,9 @@ function normalizedDate(raw: unknown): string | null {
   if (typeof raw === 'number' && Number.isFinite(raw)) {
     const milliseconds = Math.round((raw - 25569) * 86_400_000);
     const date = new Date(milliseconds);
-    return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
+    return Number.isNaN(date.getTime())
+      ? null
+      : date.toISOString().slice(0, 10);
   }
   if (typeof raw !== 'string') return null;
   const normalized = raw.trim().replaceAll('/', '-');
@@ -122,7 +124,9 @@ async function validateProjectRows(
   const existing = await getRawDb()
     .prepare('SELECT contract_code AS contractCode FROM projects')
     .all<{ contractCode: string }>();
-  const knownContracts = new Set(existing.results.map((item) => item.contractCode));
+  const knownContracts = new Set(
+    existing.results.map((item) => item.contractCode),
+  );
   const seenContracts = new Set<string>();
   const validRows: Array<Record<string, unknown>> = [];
   const rowErrors: RowError[] = [];
@@ -170,44 +174,51 @@ async function validateProjectRows(
     const district = districts.get(textValue(row, '归属单位（三级）'));
     if (!district) {
       rowErrors.push(
-        rowError(excelRow, 'UNKNOWN_DISTRICT', '归属单位必须为碑林、雁塔或莲湖', [
-          '归属单位（三级）',
-        ]),
+        rowError(
+          excelRow,
+          'UNKNOWN_DISTRICT',
+          '归属单位必须为碑林、雁塔或莲湖',
+          ['归属单位（三级）'],
+        ),
       );
       return;
     }
     const customerType = textValue(row, '客户类型');
     if (!CUSTOMER_TYPES.has(customerType)) {
       rowErrors.push(
-        rowError(excelRow, 'INVALID_CUSTOMER_TYPE', '客户类型无效', ['客户类型']),
+        rowError(excelRow, 'INVALID_CUSTOMER_TYPE', '客户类型无效', [
+          '客户类型',
+        ]),
       );
       return;
     }
     const status = textValue(row, '项目状态');
     if (!PROJECT_STATUSES.has(status)) {
       rowErrors.push(
-        rowError(excelRow, 'INVALID_PROJECT_STATUS', '项目状态无效', ['项目状态']),
+        rowError(excelRow, 'INVALID_PROJECT_STATUS', '项目状态无效', [
+          '项目状态',
+        ]),
       );
       return;
     }
     const contractDate = normalizedDate(value(row, '合同签订日期'));
     if (!contractDate) {
       rowErrors.push(
-        rowError(
-          excelRow,
-          'INVALID_DATE',
-          '合同签订日期格式应为 YYYY-MM-DD',
-          ['合同签订日期'],
-        ),
+        rowError(excelRow, 'INVALID_DATE', '合同签订日期格式应为 YYYY-MM-DD', [
+          '合同签订日期',
+        ]),
       );
       return;
     }
     const contractAmountCents = yuanToCents(value(row, '合同总金额（含税）'));
     if (!contractAmountCents) {
       rowErrors.push(
-        rowError(excelRow, 'INVALID_AMOUNT', '合同总金额必须大于0且最多两位小数', [
-          '合同总金额（含税）',
-        ]),
+        rowError(
+          excelRow,
+          'INVALID_AMOUNT',
+          '合同总金额必须大于0且最多两位小数',
+          ['合同总金额（含税）'],
+        ),
       );
       return;
     }
@@ -269,9 +280,13 @@ async function validateReceivableRows(
       districtId: string;
       contractDate: string;
     }>();
-  const projectMap = new Map(projects.results.map((item) => [item.projectCode, item]));
+  const projectMap = new Map(
+    projects.results.map((item) => [item.projectCode, item]),
+  );
   const existing = await getRawDb()
-    .prepare('SELECT project_id AS projectId, sequence_no AS sequenceNo FROM receivables')
+    .prepare(
+      'SELECT project_id AS projectId, sequence_no AS sequenceNo FROM receivables',
+    )
     .all<{ projectId: string; sequenceNo: number }>();
   const existingKeys = new Set(
     existing.results.map((item) => `${item.projectId}:${item.sequenceNo}`),
@@ -310,23 +325,30 @@ async function validateReceivableRows(
     const key = `${project.id}:${sequenceNo}`;
     if (existingKeys.has(key) || seenKeys.has(key)) {
       rowErrors.push(
-        rowError(excelRow, 'DUPLICATE_NODE', '该项目的节点序号已存在', ['节点序号']),
+        rowError(excelRow, 'DUPLICATE_NODE', '该项目的节点序号已存在', [
+          '节点序号',
+        ]),
       );
       return;
     }
     const paymentType = textValue(row, '款项类型') as PaymentType;
     if (!PAYMENT_TYPES.has(paymentType)) {
       rowErrors.push(
-        rowError(excelRow, 'INVALID_PAYMENT_TYPE', '款项类型无效', ['款项类型']),
+        rowError(excelRow, 'INVALID_PAYMENT_TYPE', '款项类型无效', [
+          '款项类型',
+        ]),
       );
       return;
     }
     const amountCents = yuanToCents(value(row, '节点金额'));
     if (!amountCents) {
       rowErrors.push(
-        rowError(excelRow, 'INVALID_AMOUNT', '节点金额必须大于0且最多两位小数', [
-          '节点金额',
-        ]),
+        rowError(
+          excelRow,
+          'INVALID_AMOUNT',
+          '节点金额必须大于0且最多两位小数',
+          ['节点金额'],
+        ),
       );
       return;
     }
@@ -404,7 +426,7 @@ async function validateReceiptRows(
 ): Promise<ValidatedImport> {
   const receivables = await getRawDb()
     .prepare(
-      `SELECT r.id, r.receivable_code AS receivableCode,
+      `SELECT r.id, r.project_id AS projectId, r.receivable_code AS receivableCode,
         r.amount_cents AS amountCents,
         r.confirmation_status AS confirmationStatus,
         p.district_id AS districtId,
@@ -417,6 +439,7 @@ async function validateReceiptRows(
     )
     .all<{
       id: string;
+      projectId: string;
       receivableCode: string;
       amountCents: number;
       confirmationStatus: string;
@@ -427,6 +450,31 @@ async function validateReceiptRows(
     receivables.results.map((item) => [item.receivableCode, item]),
   );
   const pendingAmounts = new Map<string, number>();
+  const existingReceipts = await getRawDb()
+    .prepare(`SELECT receivable_id AS receivableId,
+    amount_cents AS amountCents, received_date AS receivedDate, note FROM receipts WHERE status = 'VALID'`)
+    .all<{
+      receivableId: string;
+      amountCents: number;
+      receivedDate: string;
+      note: string | null;
+    }>();
+  const fingerprint = (
+    id: string,
+    amount: number,
+    date: string,
+    note: string | null,
+  ) => JSON.stringify([id, amount, date, note || null]);
+  const seenReceipts = new Set(
+    existingReceipts.results.map((row) =>
+      fingerprint(
+        row.receivableId,
+        Number(row.amountCents),
+        row.receivedDate,
+        row.note,
+      ),
+    ),
+  );
   const validRows: Array<Record<string, unknown>> = [];
   const rowErrors: RowError[] = [];
 
@@ -436,7 +484,9 @@ async function validateReceiptRows(
     const receivable = receivableMap.get(receivableCode);
     if (!receivable) {
       rowErrors.push(
-        rowError(excelRow, 'UNKNOWN_RECEIVABLE', '未找到应收编号', ['应收编号']),
+        rowError(excelRow, 'UNKNOWN_RECEIVABLE', '未找到应收编号', [
+          '应收编号',
+        ]),
       );
       return;
     }
@@ -447,23 +497,28 @@ async function validateReceiptRows(
         receivable.districtId,
       )
     ) {
-      rowErrors.push(
-        rowError(excelRow, 'FORBIDDEN', '无权导入该区县的回款'),
-      );
+      rowErrors.push(rowError(excelRow, 'FORBIDDEN', '无权导入该区县的回款'));
       return;
     }
     if (receivable.confirmationStatus !== 'CONFIRMED') {
       rowErrors.push(
-        rowError(excelRow, 'RECEIVABLE_DRAFT', '应收金额待确认，暂不可填报回款'),
+        rowError(
+          excelRow,
+          'RECEIVABLE_DRAFT',
+          '应收金额待确认，暂不可填报回款',
+        ),
       );
       return;
     }
     const amountCents = yuanToCents(value(row, '实收金额'));
     if (!amountCents) {
       rowErrors.push(
-        rowError(excelRow, 'INVALID_AMOUNT', '实收金额必须大于0且最多两位小数', [
-          '实收金额',
-        ]),
+        rowError(
+          excelRow,
+          'INVALID_AMOUNT',
+          '实收金额必须大于0且最多两位小数',
+          ['实收金额'],
+        ),
       );
       return;
     }
@@ -473,6 +528,23 @@ async function validateReceiptRows(
         rowError(excelRow, 'INVALID_DATE', '实收日期格式应为 YYYY-MM-DD', [
           '实收日期',
         ]),
+      );
+      return;
+    }
+    const note = textValue(row, '备注') || null;
+    const receiptKey = fingerprint(
+      receivable.id,
+      amountCents,
+      receivedDate,
+      note,
+    );
+    if (seenReceipts.has(receiptKey)) {
+      rowErrors.push(
+        rowError(
+          excelRow,
+          'DUPLICATE_RECEIPT',
+          '相同应收、日期、金额和备注的回款已存在，不会重复导入',
+        ),
       );
       return;
     }
@@ -488,14 +560,16 @@ async function validateReceiptRows(
       return;
     }
     pendingAmounts.set(receivable.id, pending + amountCents);
+    seenReceipts.add(receiptKey);
     validRows.push({
       sourceRow: excelRow,
       receivableId: receivable.id,
+      projectId: receivable.projectId,
       receivableCode,
       districtId: receivable.districtId,
       amountCents,
       receivedDate,
-      note: textValue(row, '备注') || null,
+      note,
     });
   });
   return { validRows, rowErrors };

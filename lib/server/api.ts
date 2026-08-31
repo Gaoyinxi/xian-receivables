@@ -17,7 +17,10 @@ export class BusinessError extends Error {
 
 export function ok<T>(data: T, init?: ResponseInit): Response {
   const payload: ApiSuccess<T> = { ok: true, data };
-  return Response.json(payload, init);
+  const headers = new Headers(init?.headers);
+  headers.set('Cache-Control', 'private, no-store');
+  headers.set('X-Content-Type-Options', 'nosniff');
+  return Response.json(payload, { ...init, headers });
 }
 
 export function fail(
@@ -34,10 +37,19 @@ export function fail(
     ...(fieldErrors ? { fieldErrors } : {}),
     ...(rowErrors ? { rowErrors } : {}),
   };
-  return Response.json(payload, { status });
+  return Response.json(payload, {
+    status,
+    headers: {
+      'Cache-Control': 'private, no-store',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  });
 }
 
 export function routeError(error: unknown): Response {
+  if (error instanceof SyntaxError) {
+    return fail('INVALID_JSON', '请求内容格式不正确，请刷新后重试', 400);
+  }
   if (error instanceof BusinessError) {
     return fail(
       error.code,
@@ -55,6 +67,20 @@ export function routeError(error: unknown): Response {
       fieldErrors[field].push(issue.message);
     }
     return fail('VALIDATION_ERROR', '请检查填写内容', 400, fieldErrors);
+  }
+  const detail =
+    error instanceof Error
+      ? `${error.message} ${error.cause instanceof Error ? error.cause.message : ''}`
+      : '';
+  if (detail.includes('UNIQUE constraint failed: projects.contract_code')) {
+    return fail('DUPLICATE_CONTRACT', '合同编码已存在，请检查', 409);
+  }
+  if (
+    detail.includes(
+      'UNIQUE constraint failed: receivables.project_id, receivables.sequence_no',
+    )
+  ) {
+    return fail('DUPLICATE_NODE', '该项目的节点序号已存在', 409);
   }
   console.error(error);
   return fail('INTERNAL_ERROR', '系统处理失败，请稍后重试', 500);

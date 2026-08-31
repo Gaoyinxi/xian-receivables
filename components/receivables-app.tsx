@@ -515,6 +515,10 @@ function MobileNavigation({
               key={item.id}
               variant={activeView === item.id ? 'secondary' : 'ghost'}
               size="sm"
+              className={cn(
+                'app-mobile-nav-item',
+                activeView === item.id && 'is-active',
+              )}
               aria-current={activeView === item.id ? 'page' : undefined}
               onClick={() => onNavigate(item.id)}
             >

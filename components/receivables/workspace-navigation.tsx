@@ -6,7 +6,6 @@ import {
   FolderKanban,
   LayoutDashboard,
   Settings2,
-  ShieldCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { NAV_GROUPS, VIEW_TITLES, type View } from '@/lib/project-navigation';
@@ -57,19 +56,13 @@ export function WorkspaceNavigation({
         <Building2 aria-hidden="true" className="size-7" />
         <div>
           <strong>项目应收</strong>
-          <span>项目全周期工作空间</span>
         </div>
       </div>
       <nav aria-label="主导航" className="space-y-2 px-3 py-6">
         {items}
       </nav>
-      <div className="lc-sidebar-guide">
-        <p>从项目开始</p>
-        <span>看清当前状态，沿下一步完成确认、跟进与回款。</span>
-      </div>
       <div className="lc-sidebar-footer">
-        <ShieldCheck aria-hidden="true" className="size-4" />
-        <span>按区县授权 · 操作留痕</span>
+        <span>西安市 · 项目应收工作空间</span>
       </div>
     </aside>
   );

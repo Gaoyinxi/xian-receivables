@@ -4,6 +4,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { ProjectWorkspace } from '../components/receivables/project-workspace';
 import { BusinessCockpit } from '../components/receivables/business-cockpit';
+import { ProjectTimeline } from '../components/receivables/project-timeline';
 import { DEFAULT_RISK_RULES } from '../lib/domain';
 import {
   buildPortfolio,
@@ -18,6 +19,7 @@ import {
   parseWorkspaceHash,
   projectHash,
   PROJECT_SECTIONS,
+  PROJECT_SECTION_GROUPS,
   type ProjectSection,
 } from '../lib/project-navigation';
 import { lifecycleSteps, projectEvents } from '../lib/project-activity';
@@ -381,6 +383,11 @@ void test('项目工作台真实组件渲染：所有工作区保留项目名称
     assert.match(html, /测试项目/);
     assert.match(html, /查看待确认节点/);
     assert.doesNotMatch(html, />确认应收<\/button>/);
+    assert.equal((html.match(/role="tab"/g) ?? []).length, 3);
+    assert.equal(
+      (html.match(/role="tab"[^>]*aria-selected="true"/g) ?? []).length,
+      1,
+    );
   }
   const cockpit = renderToStaticMarkup(
     createElement(BusinessCockpit, {
@@ -394,5 +401,51 @@ void test('项目工作台真实组件渲染：所有工作区保留项目名称
   );
   assert.match(cockpit, /现在最需要处理/);
   assert.match(cockpit, /回款登记后自动核销/);
-  assert.match(cockpit, /项目状态总览/);
+  assert.match(cockpit, /项目概览/);
+  assert.equal((cockpit.match(/role="tab"/g) ?? []).length, 2);
+});
+
+void test('精简导航覆盖全部旧工作区且不改变项目深链接', () => {
+  const grouped = PROJECT_SECTION_GROUPS.flatMap((group) => [
+    ...group.sections,
+  ]);
+  assert.deepEqual(
+    grouped.toSorted(),
+    Object.keys(PROJECT_SECTIONS).toSorted(),
+  );
+  assert.equal(new Set(grouped).size, grouped.length);
+  for (const section of grouped) {
+    assert.equal(
+      parseWorkspaceHash(projectHash('p', section, 'r')).section,
+      section,
+    );
+  }
+});
+
+void test('项目动态最新在前，早期动态有入口，未来计划单独保留', () => {
+  const data = fixture(
+    Array.from({ length: 15 }, (_, i) =>
+      node({
+        id: `node-${i}`,
+        sequenceNo: i + 1,
+        createdAt: `2026-08-${String(i + 1).padStart(2, '0')}T01:00:00Z`,
+        dueDate: '2026-09-10',
+        overdueDays: 0,
+        riskLevel: 'NONE',
+      }),
+    ),
+  );
+  const model = buildPortfolio(data)[0];
+  const html = renderToStaticMarkup(
+    createElement(ProjectTimeline, { model, today, onNode: () => {} }),
+  );
+  const renderedDates = [...html.matchAll(/<time dateTime="([^"]+)"/g)].map(
+    (match) => match[1],
+  );
+  const past = renderedDates.filter((date) => date.slice(0, 10) <= today);
+  assert.equal(past.length, 12);
+  assert.deepEqual(past, past.toSorted().toReversed());
+  assert.match(html, /更早动态/);
+  assert.match(html, /后续日程/);
+  assert.match(html, /2026-09-10/);
 });

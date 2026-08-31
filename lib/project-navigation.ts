@@ -22,6 +22,16 @@ export const PROJECT_SECTIONS = {
   audit: '审计记录',
 } as const;
 export type ProjectSection = keyof typeof PROJECT_SECTIONS;
+// Presentation groups only: section URLs and business permissions stay intact.
+export const PROJECT_SECTION_GROUPS = [
+  { id: 'overview', label: '动态', sections: ['overview'] },
+  {
+    id: 'receivables',
+    label: '款项',
+    sections: ['receivables', 'receipts', 'collections'],
+  },
+  { id: 'contract', label: '资料', sections: ['contract', 'risk', 'audit'] },
+] as const;
 export type WorkspaceRoute = {
   view: View;
   projectId?: string;

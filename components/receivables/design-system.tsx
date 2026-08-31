@@ -105,7 +105,9 @@ export function PageHeading({
   return (
     <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
       <div>
-        <div className="app-section-kicker mb-2">{eyebrow}</div>
+        {eyebrow !== title && (
+          <div className="app-section-kicker mb-2">{eyebrow}</div>
+        )}
         <h1 className="text-[clamp(1.35rem,2vw,1.65rem)] font-semibold leading-tight tracking-[-0.025em] text-[var(--app-text-strong)]">
           {title}
         </h1>

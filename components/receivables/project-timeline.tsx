@@ -1,4 +1,6 @@
 'use client';
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
 import { Check, Circle, Paperclip } from 'lucide-react';
 import { lifecycleSteps, projectEvents } from '@/lib/project-activity';
 import { money, dateTime, type ProjectModel } from '@/lib/project-lifecycle';
@@ -101,8 +103,9 @@ export function ProjectTimeline({
   today: string;
   onNode: (id: string) => void;
 }) {
+  const [limit, setLimit] = useState(12);
   const events = projectEvents(model);
-  const past = events.filter((e) => e.date.slice(0, 10) <= today);
+  const past = events.filter((e) => e.date.slice(0, 10) <= today).toReversed();
   const future = events.filter((e) => e.date.slice(0, 10) > today);
   const renderEvents = (rows: typeof events) =>
     rows.map((event) => (
@@ -151,18 +154,30 @@ export function ProjectTimeline({
     <section className="lc-section">
       <div className="lc-section-heading">
         <div>
-          <h2>业务时间线</h2>
-          <p>按业务日期串联合同、确认、跟进与到账；计划节点不是实际回款。</p>
+          <h2>最近动态</h2>
+          <p>按业务日期倒序 · 作废记录仍保留</p>
         </div>
       </div>
       <ol className="lc-project-timeline">
-        {renderEvents(past)}
-        <li className="lc-today">
-          <time>{today}</time>
-          <strong>今天 · 当前业务位置</strong>
-        </li>
-        {renderEvents(future)}
+        {renderEvents(past.slice(0, limit))}
       </ol>
+      {!past.length && <p className="lc-empty">还没有已发生的业务记录。</p>}
+      {past.length > limit && (
+        <Button
+          variant="ghost"
+          className="lc-feed-more"
+          onClick={() => setLimit((n) => n + 12)}
+        >
+          更早动态 · 还有 {past.length - limit} 条
+        </Button>
+      )}
+      {future.length > 0 && (
+        <details className="lc-disclosure">
+          <summary>后续日程 · {future.length} 条</summary>
+          <p>按业务日期排列；付款计划不代表已经到账。</p>
+          <ol className="lc-project-timeline">{renderEvents(future)}</ol>
+        </details>
+      )}
     </section>
   );
 }

@@ -337,20 +337,19 @@ function ApplicationHeader({
   onChangeIdentity: (role: Role, districtCode?: string | null) => void;
 }) {
   return (
-    <header className="app-topbar sticky top-0 z-20 flex h-[70px] items-center px-4 md:px-7">
+    <header className="app-topbar sticky top-0 z-20 flex h-14 items-center px-4 md:px-7">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <div className="grid size-9 shrink-0 place-items-center rounded-[11px] bg-primary text-white shadow-sm lg:hidden">
           <CircleDollarSign className="size-5" />
         </div>
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold tracking-[-0.01em] text-[var(--app-text-strong)]">
-            西安市项目应收管理系统
+            项目应收
           </p>
           <p className="hidden text-xs text-muted-foreground sm:block">
             {data.session.districtName
               ? `${data.session.districtName}数据范围`
               : '全市数据范围'}{' '}
-            · 持久化存储
           </p>
         </div>
       </div>

@@ -56,11 +56,11 @@ export function ProjectDirectory({
     <>
       <PageHeading
         eyebrow="项目"
-        title={archived ? '已结清与财务归档' : '找到项目，继续下一步'}
+        title={archived ? '已归档项目' : '项目'}
         description={
           archived
             ? '已形成应收结清后自动归档；新增节点或更正产生余额会恢复，不等同于合同结束。'
-            : '合同、付款节点、催收、回款和风险，都在一个项目工作台中处理。'
+            : '找到项目，继续处理。'
         }
         actions={
           !archived && data.session.role === 'CITY_ADMIN' ? (

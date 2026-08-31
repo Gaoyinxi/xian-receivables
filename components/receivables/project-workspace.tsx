@@ -1,17 +1,19 @@
 'use client';
-import { ArrowLeft, ArrowRight, Plus } from 'lucide-react';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { canManageReceivable, canCreateOperationalRecord } from '@/lib/domain';
+import { canCreateOperationalRecord } from '@/lib/domain';
 import {
   dateTime,
   money,
   nextForNode,
+  STAGES,
   type NextAction,
   type ProjectModel,
 } from '@/lib/project-lifecycle';
 import {
   PROJECT_SECTIONS,
+  PROJECT_SECTION_GROUPS,
   type ProjectSection,
 } from '@/lib/project-navigation';
 import type {
@@ -70,11 +72,9 @@ export function ProjectWorkspace({
   const focused = model.nodes.find((r) => r.id === focusedNodeId);
   const missingNode = Boolean(focusedNodeId && !focused);
   const next = focused ? nextForNode(focused, session) : model.next;
-  const canNode = canManageReceivable(
-    session.role,
-    session.districtId,
-    model.project.districtId,
-  );
+  const group = PROJECT_SECTION_GROUPS.find((g) =>
+    (g.sections as readonly string[]).includes(section),
+  )!;
   const receiptTarget = focusedNodeId
     ? model.open.find((r) => r.id === focusedNodeId)
     : model.open[0];
@@ -141,26 +141,19 @@ export function ProjectWorkspace({
           <span>最近操作记录：{dateTime(model.lastActivity)}</span>
         </div>
       </header>
-      <LifecycleTrack
-        model={model}
-        section={section}
-        onSection={(s) => onSection(s, focusedNodeId)}
-      />
       <div className="lc-next-action">
         <div>
           <span className="lc-eyebrow">
             {missingNode
               ? '节点不可用'
-              : `当前状态 · ${model.stage === 'SETTLED' ? '已形成应收结清' : focused?.confirmationStatus === 'DRAFT' ? '此应收待确认' : next.kind === 'collection' ? '逾期跟进' : next.label}`}
+              : `当前状态 · ${model.stage === 'SETTLED' ? '已形成应收结清' : focused?.confirmationStatus === 'DRAFT' ? '此应收待确认' : STAGES[model.stage]}`}
           </span>
           <p>
             {missingNode
               ? '链接中的节点不属于此项目或已不可用；不会自动切换到其他节点。'
               : next.reason}
           </p>
-          <small>
-            处理权限：{next.responsible}。这是操作权限说明，不代表人员任务分派。
-          </small>
+          <small>处理权限：{next.responsible}</small>
         </div>
         <div className="lc-inline-actions">
           {missingNode ? (
@@ -192,12 +185,6 @@ export function ProjectWorkspace({
                 登记实际回款
               </Button>
             )}
-          {!missingNode && canNode && model.nodes.length > 0 && (
-            <Button variant="ghost" onClick={operations.onNode}>
-              <Plus />
-              增加节点
-            </Button>
-          )}
         </div>
       </div>
       <Tabs
@@ -211,20 +198,49 @@ export function ProjectWorkspace({
           className="lc-project-tabs"
           aria-label="项目工作区域"
         >
-          {Object.entries(PROJECT_SECTIONS).map(([key, label]) => (
-            <TabsTrigger key={key} value={key}>
-              {label}
+          {PROJECT_SECTION_GROUPS.map((item) => (
+            <TabsTrigger
+              key={item.id}
+              value={item.id === group.id ? section : item.id}
+            >
+              {item.label}
             </TabsTrigger>
           ))}
         </TabsList>
+        {group.sections.length > 1 && (
+          <nav
+            className="lc-section-switcher"
+            aria-label={`${group.label}分类`}
+          >
+            {group.sections.map((key) => (
+              <Button
+                key={key}
+                variant="ghost"
+                size="sm"
+                aria-current={section === key ? 'page' : undefined}
+                onClick={() => onSection(key, focusedNodeId)}
+              >
+                {PROJECT_SECTIONS[key]}
+              </Button>
+            ))}
+          </nav>
+        )}
         <TabsContent value="overview">
-          <ProjectMoney model={model} />
-          <LifecycleEvidence model={model} onSection={onSection} />
           <ProjectTimeline
             model={model}
             today={today}
             onNode={(id) => onSection('receivables', id)}
           />
+          <details className="lc-disclosure lc-project-evidence">
+            <summary>金额与流程依据</summary>
+            <ProjectMoney model={model} />
+            <LifecycleTrack
+              model={model}
+              section={section}
+              onSection={(s) => onSection(s, focusedNodeId)}
+            />
+            <LifecycleEvidence model={model} onSection={onSection} />
+          </details>
         </TabsContent>
         <TabsContent value="contract">
           <ProjectContract model={model} session={session} onDone={onDone} />

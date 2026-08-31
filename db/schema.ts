@@ -1,10 +1,12 @@
 import {
+  check,
   index,
   integer,
   sqliteTable,
   text,
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
+import { sql } from 'drizzle-orm';
 
 export const districts = sqliteTable(
   'districts',
@@ -64,7 +66,10 @@ export const projects = sqliteTable(
   (table) => [
     uniqueIndex('idx_projects_project_code').on(table.projectCode),
     uniqueIndex('idx_projects_contract_code').on(table.contractCode),
-    index('idx_projects_district_archived').on(table.districtId, table.archivedAt),
+    index('idx_projects_district_archived').on(
+      table.districtId,
+      table.archivedAt,
+    ),
   ],
 );
 
@@ -256,4 +261,50 @@ export const auditLogs = sqliteTable(
 export const appMeta = sqliteTable('app_meta', {
   key: text('key').primaryKey(),
   value: text('value').notNull(),
+});
+
+// Self-hosted authentication; the private Sites runtime does not use these tables.
+export const authUsers = sqliteTable(
+  'auth_users',
+  {
+    id: text('id').primaryKey().notNull(),
+    username: text('username').notNull().unique(),
+    passwordHash: text('password_hash').notNull(),
+    displayName: text('display_name').notNull(),
+    role: text('role').notNull(),
+    districtId: text('district_id').references(() => districts.id),
+    enabled: integer('enabled').notNull().default(1),
+    mustChangePassword: integer('must_change_password').notNull().default(1),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (table) => [
+    check(
+      'auth_role_valid',
+      sql`${table.role} IN ('CITY_ADMIN','DISTRICT_ADMIN','DISTRICT_OPERATOR')`,
+    ),
+    check(
+      'auth_district_valid',
+      sql`(${table.role} = 'CITY_ADMIN' AND ${table.districtId} IS NULL) OR (${table.role} != 'CITY_ADMIN' AND ${table.districtId} IS NOT NULL)`,
+    ),
+  ],
+);
+export const authSessions = sqliteTable(
+  'auth_sessions',
+  {
+    tokenHash: text('token_hash').primaryKey().notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => authUsers.id),
+    csrfToken: text('csrf_token').notNull(),
+    createdAt: text('created_at').notNull(),
+    expiresAt: text('expires_at').notNull(),
+    lastSeenAt: text('last_seen_at').notNull(),
+  },
+  (table) => [index('idx_auth_sessions_user').on(table.userId)],
+);
+export const authLoginLimits = sqliteTable('auth_login_limits', {
+  key: text('key').primaryKey().notNull(),
+  attempts: integer('attempts').notNull(),
+  resetsAt: integer('resets_at').notNull(),
 });

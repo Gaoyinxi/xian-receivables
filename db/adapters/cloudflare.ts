@@ -1,0 +1,32 @@
+import { env } from 'cloudflare:workers';
+import { drizzle } from 'drizzle-orm/d1';
+import * as schema from '../schema';
+
+// Used only by the retained private Sites build; the self-hosted build never imports this module.
+export const isDemoSeedEnabled = () => true;
+
+export function getDb() {
+  if (!env.DB) {
+    throw new Error(
+      'Cloudflare D1 binding `DB` is unavailable. Set the `d1` field in .openai/hosting.json to `DB` or let your control plane inject the real binding values before using the database.',
+    );
+  }
+
+  return drizzle(env.DB, { schema });
+}
+
+export function getRawDb() {
+  if (!env.DB) {
+    throw new Error('Cloudflare D1 binding `DB` is unavailable.');
+  }
+
+  return env.DB;
+}
+
+export function getFilesBucket() {
+  if (!env.FILES) {
+    throw new Error('Cloudflare R2 binding `FILES` is unavailable.');
+  }
+
+  return env.FILES;
+}

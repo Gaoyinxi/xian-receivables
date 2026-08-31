@@ -1,4 +1,4 @@
-import { getRawDb } from './index';
+import { getRawDb, isDemoSeedEnabled } from './index';
 
 const SCHEMA_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS districts (
@@ -648,16 +648,37 @@ async function seedDatabase() {
 
 let initializationPromise: Promise<void> | null = null;
 
+// Reference configuration is not sample business data. Formal installations start empty.
+async function initializeReferenceData() {
+  const db = getRawDb();
+  const now = new Date().toISOString();
+  await db.batch([
+    ...[
+      ['dist-beilin', 'BEILIN', '碑林区'],
+      ['dist-yanta', 'YANTA', '雁塔区'],
+      ['dist-lianhu', 'LIANHU', '莲湖区'],
+    ].map(([id, code, name]) => db.prepare(
+      'INSERT OR IGNORE INTO districts (id, code, name, created_at) VALUES (?, ?, ?, ?)',
+    ).bind(id, code, name, now)),
+    db.prepare(`INSERT OR IGNORE INTO risk_rules (
+      id, blue_min_days, yellow_min_days, red_min_days,
+      legal_level5_min_months, legal_level4_min_months, legal_level3_min_months,
+      legal_level2_min_months, legal_level1_min_months, updated_by, updated_at
+    ) VALUES ('default', 1, 30, 90, 1, 7, 13, 19, 24, 'SYSTEM_INIT', ?)`).bind(now),
+  ]);
+}
+
 export function ensureDatabase(): Promise<void> {
   if (initializationPromise) return initializationPromise;
 
   initializationPromise = (async () => {
     const db = getRawDb();
     await db.batch(SCHEMA_STATEMENTS.map((sql) => db.prepare(sql)));
+    await initializeReferenceData();
     const seed = await db
       .prepare("SELECT value FROM app_meta WHERE key = 'seed_v1'")
       .first<{ value: string }>();
-    if (!seed) await seedDatabase();
+    if (!seed && isDemoSeedEnabled()) await seedDatabase();
     await db.prepare('PRAGMA optimize').run();
   })().catch((error) => {
     initializationPromise = null;

@@ -8,6 +8,7 @@ import { createHash } from 'node:crypto';
 
 const projectRoot = process.cwd();
 const vinextExecutable = join(projectRoot, 'node_modules', '.bin', 'vinext');
+const nativeRuntime = process.argv.includes('--node');
 
 async function getFreePort() {
   const server = createServer();
@@ -75,12 +76,13 @@ const testEnvironment = {
   TEST_BASE_URL: baseUrl,
   // Vinext's lock is project-wide. The test service has its own port AND storage.
   VINEXT_NO_DEV_LOCK: '1',
+  ...(nativeRuntime ? { RECEIVABLES_DATA_DIR: join(statePath, 'node-d1') } : {}),
 };
 
 const startServer = () =>
   spawn(
-    vinextExecutable,
-    ['dev', '--host', '127.0.0.1', '--port', String(port)],
+    nativeRuntime ? process.execPath : vinextExecutable,
+    nativeRuntime ? ['.selfhost-build/integrity/server.mjs'] : ['dev', '--host', '127.0.0.1', '--port', String(port)],
     {
       cwd: projectRoot,
       env: testEnvironment,

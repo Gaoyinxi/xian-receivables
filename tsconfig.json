@@ -15,7 +15,9 @@
     "jsx": "react-jsx",
     "incremental": true,
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@runtime/storage": ["./db/adapters/cloudflare.ts"],
+      "@runtime/session": ["./lib/server/demo-session.ts"]
     }
   },
   "include": [

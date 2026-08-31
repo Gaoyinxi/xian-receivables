@@ -40,3 +40,11 @@ next-env.d.ts
 /outputs/
 /work/
 /artifacts/
+
+# Self-hosted runtime: credentials, databases, uploaded files, backups and tools
+/.selfhost/
+/.selfhost-build/
+/.data/
+/.tools/
+apps/**/dist/
+apps/**/node_modules/

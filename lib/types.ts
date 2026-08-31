@@ -40,6 +40,9 @@ export interface DemoSession {
   districtCode: string | null;
   districtName: string | null;
   displayName: string;
+  authMode?: 'DEMO' | 'PASSWORD';
+  username?: string;
+  mustChangePassword?: boolean;
 }
 
 export interface DistrictRecord {

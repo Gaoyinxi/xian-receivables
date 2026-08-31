@@ -1,6 +1,8 @@
 'use client';
 
 import * as React from 'react';
+import { apiRequest, ApiClientError } from '@/lib/api-client';
+import { AccountIdentity } from '@/components/receivables/account-context';
 import { ReceivableDetail } from '@/components/receivables/receivable-detail';
 import {
   filterReceivables,
@@ -86,7 +88,6 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import type {
-  ApiResponse,
   BootstrapData,
   CollectionAction,
   CollectionRecord,
@@ -129,48 +130,6 @@ const viewTitles: Record<View, string> = {
   risk: '风险设置',
   history: '历史项目',
 };
-
-class ApiClientError extends Error {
-  constructor(
-    message: string,
-    public readonly code: string,
-    public readonly fieldErrors?: Record<string, string[]>,
-  ) {
-    super(message);
-  }
-}
-
-async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
-  const headers = new Headers(init?.headers);
-  if (!(init?.body instanceof FormData) && !headers.has('Content-Type')) {
-    headers.set('Content-Type', 'application/json');
-  }
-  const response = await fetch(url, {
-    ...init,
-    headers,
-    cache: 'no-store',
-  });
-  let payload: ApiResponse<T>;
-  try {
-    payload = (await response.json()) as ApiResponse<T>;
-  } catch {
-    if (response.status === 413) {
-      throw new ApiClientError('单个附件不能超过 10MB', 'FILE_TOO_LARGE');
-    }
-    throw new ApiClientError(
-      response.ok ? '服务返回格式异常' : '本地服务处理失败，请稍后重试',
-      'INVALID_RESPONSE',
-    );
-  }
-  if (!payload.ok) {
-    throw new ApiClientError(
-      payload.message,
-      payload.code,
-      payload.fieldErrors,
-    );
-  }
-  return payload.data;
-}
 
 function formatYuan(cents: number): string {
   return `¥${(cents / 100).toLocaleString('zh-CN', {
@@ -256,6 +215,9 @@ function IdentityControls({
   onChange: (role: Role, districtCode?: string | null) => void;
   compact?: boolean;
 }) {
+  if (data.session.authMode === 'PASSWORD') {
+    return <AccountIdentity name={data.session.displayName} role={roleLabels[data.session.role]} />;
+  }
   return (
     <>
       <span
@@ -454,10 +416,10 @@ function DesktopSidebar({
       <div className="m-3 rounded-xl border border-white/10 bg-white/6 p-3.5 shadow-inner shadow-black/5">
         <div className="mb-2 flex items-center gap-2 text-xs font-medium">
           <ShieldCheck className="size-4 text-[var(--app-sidebar-highlight)]" />
-          安全演示环境
+          服务端权限校验
         </div>
         <p className="text-[11px] leading-5 text-blue-50/55">
-          匿名数据隔离保存，写操作由服务端校验权限。
+          数据按区县隔离，回款与催缴操作完整留痕。
         </p>
       </div>
     </aside>
@@ -755,7 +717,7 @@ export function ReceivablesApp() {
               正在载入应收台账
             </p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              首次运行会初始化匿名演示数据
+              正在安全读取你的业务数据
             </p>
           </div>
         </output>

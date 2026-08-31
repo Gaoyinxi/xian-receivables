@@ -77,6 +77,7 @@ export interface ProjectRecord {
   receivableAmountCents: number;
   receivedAmountCents: number;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface ReceivableRecord {
@@ -113,6 +114,8 @@ export interface ReceivableRecord {
   latestCollectionAction: CollectionAction | null;
   collectionMissing: boolean;
   createdAt: string;
+  confirmedAt?: string | null;
+  updatedAt?: string;
 }
 
 export interface ReceiptRecord {
@@ -205,6 +208,7 @@ export interface DashboardSummary {
 }
 
 export interface BootstrapData {
+  businessDate?: string;
   session: DemoSession;
   districts: DistrictRecord[];
   summary: DashboardSummary;

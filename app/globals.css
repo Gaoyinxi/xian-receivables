@@ -1,6 +1,7 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
+@import './lifecycle.css';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -224,11 +225,16 @@
       'calt' 1;
     font-variant-numeric: tabular-nums;
     text-rendering: optimizeLegibility;
-    background: linear-gradient(180deg, var(--app-canvas-top), var(--app-canvas-bottom));
+    background: linear-gradient(
+      180deg,
+      var(--app-canvas-top),
+      var(--app-canvas-bottom)
+    );
     isolation: isolate;
   }
 
   body::before {
+    display: none;
     position: fixed;
     z-index: -1;
     inset: 0;
@@ -373,19 +379,14 @@
 
   .app-sidebar {
     overflow: hidden;
-    background:
-      radial-gradient(
-        circle at 10% 0%,
-        rgb(65 145 236 / 24%),
-        transparent 16rem
-      ),
-      linear-gradient(180deg, var(--app-sidebar-top), var(--app-sidebar-bottom));
+    background: var(--sidebar);
     box-shadow:
       inset -1px 0 rgb(255 255 255 / 8%),
       12px 0 32px rgb(4 21 42 / 7%);
   }
 
   .app-sidebar::after {
+    display: none;
     position: absolute;
     inset: 0;
     pointer-events: none;

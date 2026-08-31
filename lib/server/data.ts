@@ -116,7 +116,7 @@ export async function getBootstrapData(
         COUNT(r.id) AS receivableCount,
         COALESCE(SUM(r.amount_cents), 0) AS receivableAmountCents,
         COALESCE(SUM(rt.received_amount_cents), 0) AS receivedAmountCents,
-        p.created_at AS createdAt
+        p.created_at AS createdAt, p.updated_at AS updatedAt
       FROM projects p
       JOIN districts d ON d.id = p.district_id
       LEFT JOIN receivables r ON r.project_id = p.id
@@ -166,7 +166,8 @@ export async function getBootstrapData(
           WHERE ce.receivable_id = r.id AND ce.status = 'VALID'
           ORDER BY ce.action_date DESC, ce.created_at DESC LIMIT 1
         ) AS latestCollectionAction,
-        r.created_at AS createdAt
+        r.created_at AS createdAt, r.confirmed_at AS confirmedAt,
+        r.updated_at AS updatedAt
       FROM receivables r
       JOIN projects p ON p.id = r.project_id
       JOIN districts d ON d.id = p.district_id
@@ -331,6 +332,7 @@ export async function getBootstrapData(
   };
 
   return {
+    businessDate: today,
     session,
     districts,
     summary,

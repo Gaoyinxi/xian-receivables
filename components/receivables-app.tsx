@@ -3,7 +3,28 @@
 import * as React from 'react';
 import { apiRequest, ApiClientError } from '@/lib/api-client';
 import { AccountIdentity } from '@/components/receivables/account-context';
-import { ReceivableDetail } from '@/components/receivables/receivable-detail';
+import { BusinessCockpit } from '@/components/receivables/business-cockpit';
+import { ProjectDirectory } from '@/components/receivables/project-directory';
+import { ProjectWorkspace } from '@/components/receivables/project-workspace';
+import {
+  WorkspaceNavigation,
+  WorkspaceSubnav,
+} from '@/components/receivables/workspace-navigation';
+import {
+  GlobalRiskView,
+  AccountScopeView,
+} from '@/components/receivables/global-insights';
+import { buildPortfolio, shanghaiDate } from '@/lib/project-lifecycle';
+import {
+  contextualCandidates,
+  parseWorkspaceHash,
+  projectHash,
+  VIEW_TITLES,
+  type View,
+  type WorkspaceRoute,
+  type ProjectSection,
+} from '@/lib/project-navigation';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
 import {
   filterReceivables,
   receivablesCsv,
@@ -12,31 +33,18 @@ import {
 } from '@/lib/workbench';
 import {
   AlertTriangle,
-  Archive,
   BellRing,
-  Building2,
   Check,
-  ChevronRight,
   CircleCheckBig,
   CircleDollarSign,
-  Clock3,
   Download,
-  FileClock,
   FileSpreadsheet,
-  FolderKanban,
-  History,
-  LayoutDashboard,
   LoaderCircle,
   Paperclip,
   PencilLine,
   Plus,
-  ReceiptText,
   RefreshCw,
-  Settings2,
-  ShieldCheck,
-  TrendingUp,
   UploadCloud,
-  WalletCards,
   X,
 } from 'lucide-react';
 
@@ -57,7 +65,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -92,57 +99,19 @@ import type {
   CollectionAction,
   CollectionRecord,
   ImportKind,
-  ProjectRecord,
   ReceiptRecord,
   ReceivableRecord,
   Role,
   RowError,
 } from '@/lib/types';
 
-type View =
-  | 'dashboard'
-  | 'projects'
-  | 'receivables'
-  | 'receipts'
-  | 'collections'
-  | 'imports'
-  | 'audit'
-  | 'risk'
-  | 'history';
-
-type NavItem = {
-  id: View;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-  count?: number;
-};
-
 type Notice = { type: 'success' | 'error'; title: string; message: string };
-
-const viewTitles: Record<View, string> = {
-  dashboard: '应收工作台',
-  projects: '项目管理',
-  receivables: '应收管理',
-  receipts: '回款流水',
-  collections: '催缴中心',
-  imports: '导入中心',
-  audit: '审计日志',
-  risk: '风险设置',
-  history: '历史项目',
-};
 
 function formatYuan(cents: number): string {
   return `¥${(cents / 100).toLocaleString('zh-CN', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
-}
-
-function formatWan(cents: number): string {
-  return (cents / 1_000_000).toLocaleString('zh-CN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
 }
 
 function formatDateTime(value: string): string {
@@ -216,7 +185,12 @@ function IdentityControls({
   compact?: boolean;
 }) {
   if (data.session.authMode === 'PASSWORD') {
-    return <AccountIdentity name={data.session.displayName} role={roleLabels[data.session.role]} />;
+    return (
+      <AccountIdentity
+        name={data.session.displayName}
+        role={roleLabels[data.session.role]}
+      />
+    );
   }
   return (
     <>
@@ -351,81 +325,6 @@ function AttachmentField({
   );
 }
 
-function DesktopSidebar({
-  navItems,
-  governance,
-  activeView,
-  onNavigate,
-}: {
-  navItems: NavItem[];
-  governance: NavItem[];
-  activeView: View;
-  onNavigate: (view: View) => void;
-}) {
-  const renderItem = (item: NavItem) => (
-    <button
-      key={item.id}
-      type="button"
-      onClick={() => onNavigate(item.id)}
-      aria-current={activeView === item.id ? 'page' : undefined}
-      data-active={activeView === item.id}
-      className="app-sidebar-link group"
-    >
-      <item.icon aria-hidden="true" className="size-[17px]" />
-      <span className="flex-1">{item.label}</span>
-      {item.count ? (
-        <span
-          className={cn(
-            'grid min-w-5 place-items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
-            activeView === item.id
-              ? 'bg-[var(--app-brand-soft)] text-[var(--app-brand-strong)]'
-              : 'bg-white/12 text-white',
-          )}
-        >
-          {item.count}
-        </span>
-      ) : null}
-    </button>
-  );
-
-  return (
-    <aside className="app-sidebar fixed inset-y-0 left-0 z-30 hidden w-[232px] flex-col text-white lg:flex">
-      <div className="flex h-[70px] items-center gap-3 border-b border-white/10 px-5">
-        <div className="app-brand-mark size-9">
-          <CircleDollarSign className="size-5" strokeWidth={2.4} />
-        </div>
-        <div>
-          <p className="text-[15px] font-semibold tracking-wide">
-            项目应收管理
-          </p>
-          <p className="mt-0.5 text-[10px] tracking-[0.16em] text-blue-100/70">
-            RECEIVABLES
-          </p>
-        </div>
-      </div>
-      <nav aria-label="主导航" className="flex-1 overflow-y-auto px-3 py-5">
-        <p className="mb-2 px-3 text-[10px] font-medium tracking-[0.14em] text-blue-100/50">
-          业务中心
-        </p>
-        <div className="space-y-1">{navItems.map(renderItem)}</div>
-        <p className="mb-2 mt-7 px-3 text-[10px] font-medium tracking-[0.14em] text-blue-100/50">
-          系统治理
-        </p>
-        <div className="space-y-1">{governance.map(renderItem)}</div>
-      </nav>
-      <div className="m-3 rounded-xl border border-white/10 bg-white/6 p-3.5 shadow-inner shadow-black/5">
-        <div className="mb-2 flex items-center gap-2 text-xs font-medium">
-          <ShieldCheck className="size-4 text-[var(--app-sidebar-highlight)]" />
-          服务端权限校验
-        </div>
-        <p className="text-[11px] leading-5 text-blue-50/55">
-          数据按区县隔离，回款与催缴操作完整留痕。
-        </p>
-      </div>
-    </aside>
-  );
-}
-
 function ApplicationHeader({
   data,
   refreshing,
@@ -485,56 +384,17 @@ function ApplicationHeader({
   );
 }
 
-function MobileNavigation({
-  data,
-  navItems,
-  governance,
-  activeView,
-  onNavigate,
-  onChangeIdentity,
-}: {
-  data: BootstrapData;
-  navItems: NavItem[];
-  governance: NavItem[];
-  activeView: View;
-  onNavigate: (view: View) => void;
-  onChangeIdentity: (role: Role, districtCode?: string | null) => void;
-}) {
-  return (
-    <>
-      <div className="app-mobile-context flex items-center gap-2 overflow-x-auto px-4 py-2 md:hidden">
-        <IdentityControls data={data} compact onChange={onChangeIdentity} />
-      </div>
-      <nav
-        aria-label="移动主导航"
-        className="app-mobile-nav px-4 py-2 lg:hidden"
-      >
-        <div className="app-mobile-nav-scroll flex gap-1 overflow-x-auto">
-          {[...navItems, ...governance].map((item) => (
-            <Button
-              key={item.id}
-              variant={activeView === item.id ? 'secondary' : 'ghost'}
-              size="sm"
-              className={cn(
-                'app-mobile-nav-item',
-                activeView === item.id && 'is-active',
-              )}
-              aria-current={activeView === item.id ? 'page' : undefined}
-              onClick={() => onNavigate(item.id)}
-            >
-              <item.icon aria-hidden="true" />
-              {item.label}
-            </Button>
-          ))}
-        </div>
-      </nav>
-    </>
-  );
-}
-
 export function ReceivablesApp() {
   const [data, setData] = React.useState<BootstrapData | null>(null);
-  const [view, setView] = React.useState<View>('dashboard');
+  const [route, setRoute] = React.useState<WorkspaceRoute>({
+    view: 'dashboard',
+  });
+  const view = route.view;
+  const [contextProjectId, setContextProjectId] = React.useState<string | null>(
+    null,
+  );
+  const [collectionInitialAction, setCollectionInitialAction] =
+    React.useState<CollectionAction>('WECHAT');
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
   const [notice, setNotice] = React.useState<Notice | null>(null);
@@ -546,11 +406,6 @@ export function ReceivablesApp() {
   const [collectionDialog, setCollectionDialog] = React.useState(false);
   const [collectionCorrection, setCollectionCorrection] =
     React.useState<CollectionRecord | null>(null);
-  const [selectedProject, setSelectedProject] =
-    React.useState<ProjectRecord | null>(null);
-  const [selectedReceivableId, setSelectedReceivableId] = React.useState<
-    string | null
-  >(null);
   const [operationTarget, setOperationTarget] = React.useState<string | null>(
     null,
   );
@@ -560,20 +415,43 @@ export function ReceivablesApp() {
   const identitySwitch = React.useRef(false);
 
   function navigate(next: View) {
-    setView(next);
+    setRoute({ view: next });
     window.location.hash = next;
   }
-
-  function openReceivables(status: ReceivableFilter) {
-    setReceivableStatus(status);
-    navigate('receivables');
+  function openProject(
+    projectId: string,
+    section: ProjectSection = 'overview',
+    receivableId?: string,
+  ) {
+    const hash = projectHash(projectId, section, receivableId);
+    setRoute(parseWorkspaceHash(hash));
+    window.location.hash = hash;
+  }
+  function openNode(id: string) {
+    const node = data?.receivables.find((item) => item.id === id);
+    if (node) openProject(node.projectId, 'receivables', id);
+  }
+  function openOperation(
+    kind: 'node' | 'receipt' | 'collection',
+    projectId: string | null,
+    id: string | null = null,
+    action: CollectionAction = 'WECHAT',
+  ) {
+    setNodeDialog(kind === 'node');
+    setReceiptDialog(kind === 'receipt');
+    setCollectionDialog(kind === 'collection');
+    setReceiptCorrection(null);
+    setCollectionCorrection(null);
+    setContextProjectId(projectId);
+    setOperationTarget(id);
+    setCollectionInitialAction(action);
   }
 
   React.useEffect(() => {
     const restoreView = () => {
       const next = window.location.hash.slice(1);
       if (next === 'main-content') return;
-      setView(Object.hasOwn(viewTitles, next) ? (next as View) : 'dashboard');
+      setRoute(parseWorkspaceHash(next));
     };
     restoreView();
     window.addEventListener('hashchange', restoreView);
@@ -581,7 +459,7 @@ export function ReceivablesApp() {
   }, []);
 
   React.useEffect(() => {
-    document.title = `${viewTitles[view]} · 项目应收管理系统`;
+    document.title = `${VIEW_TITLES[view]} · 项目应收管理系统`;
   }, [view]);
 
   const load = React.useCallback(async (background = false) => {
@@ -646,8 +524,7 @@ export function ReceivablesApp() {
     setCollectionDialog(false);
     setReceiptCorrection(null);
     setCollectionCorrection(null);
-    setSelectedProject(null);
-    setSelectedReceivableId(null);
+    setContextProjectId(null);
     setOperationTarget(null);
     try {
       await apiRequest('/api/session', {
@@ -663,6 +540,7 @@ export function ReceivablesApp() {
             : `当前仅可处理${districtCode ?? ''}对应区县数据`,
       });
       await load(true);
+      navigate('dashboard');
     } catch (error) {
       setNotice({
         type: 'error',
@@ -672,6 +550,35 @@ export function ReceivablesApp() {
     } finally {
       identitySwitch.current = false;
       setRefreshing(false);
+    }
+  }
+
+  const models = React.useMemo(
+    () => (data ? buildPortfolio(data) : []),
+    [data],
+  );
+  const currentProject = route.projectId
+    ? models.find((model) => model.project.id === route.projectId)
+    : undefined;
+  const today = data?.businessDate ?? shanghaiDate();
+
+  async function confirmReceivable(id: string) {
+    if (confirmingId) return;
+    setConfirmingId(id);
+    try {
+      await apiRequest('/api/receivables/confirm', {
+        method: 'POST',
+        body: JSON.stringify({ id }),
+      });
+      await done('应收已确认，项目状态已更新，现在可以登记回款');
+    } catch (error) {
+      setNotice({
+        type: 'error',
+        title: '确认失败',
+        message: error instanceof Error ? error.message : '请稍后重试',
+      });
+    } finally {
+      setConfirmingId(null);
     }
   }
 
@@ -729,111 +636,110 @@ export function ReceivablesApp() {
     );
   }
 
-  const navItems: NavItem[] = [
-    { id: 'dashboard', label: '应收工作台', icon: LayoutDashboard },
-    { id: 'projects', label: '项目管理', icon: FolderKanban },
-    {
-      id: 'receivables',
-      label: '应收管理',
-      icon: ReceiptText,
-      count: data.summary.pendingConfirmationCount,
-    },
-    { id: 'receipts', label: '回款流水', icon: WalletCards },
-    {
-      id: 'collections',
-      label: '催缴中心',
-      icon: BellRing,
-      count: data.summary.overdueWithoutCollectionCount,
-    },
-    { id: 'imports', label: '导入中心', icon: UploadCloud },
-    { id: 'history', label: '历史项目', icon: Archive },
-  ];
-  const governance: NavItem[] = [
-    { id: 'audit', label: '审计日志', icon: History },
-    { id: 'risk', label: '风险设置', icon: Settings2 },
-  ];
-
-  const content = {
-    dashboard: (
-      <DashboardView
+  const content = route.projectId ? (
+    currentProject ? (
+      <ProjectWorkspace
+        key={currentProject.project.id}
+        model={currentProject}
         data={data}
-        onNavigate={navigate}
-        onFilter={openReceivables}
-        onNewProject={() => setProjectDialog(true)}
-        onSelect={setSelectedReceivableId}
-      />
-    ),
-    projects: (
-      <ProjectsView
-        data={data}
-        archived={false}
-        onNew={() => setProjectDialog(true)}
-        onNewNode={() => setNodeDialog(true)}
-        onSelectProject={setSelectedProject}
-      />
-    ),
-    history: (
-      <ProjectsView
-        data={data}
-        archived
-        onNew={() => setProjectDialog(true)}
-        onNewNode={() => setNodeDialog(true)}
-        onSelectProject={setSelectedProject}
-      />
-    ),
-    receivables: (
-      <ReceivablesView
-        data={data}
-        status={receivableStatus}
-        onStatusChange={setReceivableStatus}
-        onSelect={setSelectedReceivableId}
+        section={route.section ?? 'overview'}
+        focusedNodeId={route.receivableId}
+        today={today}
         confirmingId={confirmingId}
-        onConfirm={async (id) => {
-          if (confirmingId) return;
-          setConfirmingId(id);
-          try {
-            await apiRequest('/api/receivables/confirm', {
-              method: 'POST',
-              body: JSON.stringify({ id }),
-            });
-            await done('应收已确认，现在可以登记回款');
-          } catch (error) {
-            setNotice({
-              type: 'error',
-              title: '确认失败',
-              message: error instanceof Error ? error.message : '请稍后重试',
-            });
-          } finally {
-            setConfirmingId(null);
-          }
+        onBack={() => navigate('projects')}
+        onSection={(section, nodeId) =>
+          openProject(currentProject.project.id, section, nodeId)
+        }
+        onDone={done}
+        operations={{
+          onNode: () => openOperation('node', currentProject.project.id),
+          onConfirm: (id) => void confirmReceivable(id),
+          onReceipt: (id) =>
+            openOperation('receipt', currentProject.project.id, id),
+          onCollection: (id, action) =>
+            openOperation('collection', currentProject.project.id, id, action),
+          onCorrectReceipt: (record) => setReceiptCorrection(record),
+          onCorrectCollection: (record) => setCollectionCorrection(record),
         }}
-        onNewNode={() => setNodeDialog(true)}
       />
-    ),
-    receipts: (
-      <ReceiptsView
-        data={data}
-        onNew={() => {
-          setOperationTarget(null);
-          setReceiptDialog(true);
-        }}
-        onCorrect={setReceiptCorrection}
-      />
-    ),
-    collections: (
-      <CollectionsView
-        data={data}
-        onNew={() => {
-          setOperationTarget(null);
-          setCollectionDialog(true);
-        }}
-        onCorrect={setCollectionCorrection}
-      />
-    ),
-    imports: <ImportView data={data} onDone={done} />,
-    audit: <AuditView data={data} />,
-    risk: <RiskView data={data} onDone={done} />,
-  }[view];
+    ) : (
+      <section className="lc-section">
+        <EmptyState
+          title="项目不可用"
+          description="项目不存在或不在当前账号的数据范围中；没有自动打开其他项目。"
+        />
+        <Button
+          variant="outline"
+          className="m-4"
+          onClick={() => navigate('projects')}
+        >
+          返回项目列表
+        </Button>
+      </section>
+    )
+  ) : (
+    {
+      dashboard: (
+        <BusinessCockpit
+          data={data}
+          models={models}
+          today={today}
+          onOpen={openProject}
+          onNew={() => setProjectDialog(true)}
+          onProjects={() => navigate('projects')}
+        />
+      ),
+      projects: (
+        <ProjectDirectory
+          key="active"
+          data={data}
+          models={models}
+          onOpen={openProject}
+          onNew={() => setProjectDialog(true)}
+        />
+      ),
+      history: (
+        <ProjectDirectory
+          key="history"
+          data={data}
+          models={models}
+          archived
+          onOpen={openProject}
+          onNew={() => setProjectDialog(true)}
+        />
+      ),
+      receivables: (
+        <ReceivablesView
+          data={data}
+          status={receivableStatus}
+          onStatusChange={setReceivableStatus}
+          onSelect={openNode}
+          confirmingId={confirmingId}
+          onConfirm={(id) => void confirmReceivable(id)}
+          onNewNode={() => openOperation('node', null)}
+        />
+      ),
+      receipts: (
+        <ReceiptsView
+          data={data}
+          onNew={() => openOperation('receipt', null)}
+          onCorrect={setReceiptCorrection}
+        />
+      ),
+      collections: (
+        <CollectionsView
+          data={data}
+          onNew={() => openOperation('collection', null)}
+          onCorrect={setCollectionCorrection}
+        />
+      ),
+      imports: <ImportView data={data} onDone={done} />,
+      audit: <AuditView data={data} />,
+      risk: <RiskView data={data} onDone={done} />,
+      'risk-analysis': <GlobalRiskView models={models} onOpen={openProject} />,
+      account: <AccountScopeView data={data} />,
+    }[view]
+  );
 
   return (
     <div
@@ -843,12 +749,7 @@ export function ReceivablesApp() {
       <a className="app-skip-link" href="#main-content">
         跳转到主要内容
       </a>
-      <DesktopSidebar
-        navItems={navItems}
-        governance={governance}
-        activeView={view}
-        onNavigate={navigate}
-      />
+      <WorkspaceNavigation view={view} onNavigate={navigate} />
 
       <div className="lg:pl-[232px]">
         <ApplicationHeader
@@ -859,21 +760,24 @@ export function ReceivablesApp() {
             void changeIdentity(role, districtCode)
           }
         />
-        <MobileNavigation
-          data={data}
-          navItems={navItems}
-          governance={governance}
-          activeView={view}
-          onNavigate={navigate}
-          onChangeIdentity={(role, districtCode) =>
-            void changeIdentity(role, districtCode)
-          }
-        />
+        <div className="app-mobile-context flex items-center gap-2 overflow-x-auto px-4 py-2 md:hidden">
+          <IdentityControls
+            data={data}
+            compact
+            onChange={(role, districtCode) =>
+              void changeIdentity(role, districtCode)
+            }
+          />
+        </div>
+        <WorkspaceNavigation view={view} onNavigate={navigate} mobile />
+        {!route.projectId && (
+          <WorkspaceSubnav view={view} onNavigate={navigate} />
+        )}
 
         <main
           id="main-content"
           tabIndex={-1}
-          className="app-main"
+          className="app-main lc-main"
           aria-busy={refreshing}
         >
           {notice ? (
@@ -903,7 +807,7 @@ export function ReceivablesApp() {
               </Button>
             </Alert>
           ) : null}
-          {content}
+          <div key={route.projectId ?? view}>{content}</div>
         </main>
       </div>
 
@@ -913,11 +817,13 @@ export function ReceivablesApp() {
         data={data}
         onOpenChange={setProjectDialog}
         onDone={done}
+        onCreated={(id) => openProject(id, 'receivables')}
       />
       <NodeDialog
-        key={nodeDialog ? 'node-open' : 'node-closed'}
+        key={nodeDialog ? `node-open-${contextProjectId}` : 'node-closed'}
         open={nodeDialog}
         data={data}
+        contextProjectId={contextProjectId}
         onOpenChange={setNodeDialog}
         onDone={done}
       />
@@ -927,13 +833,16 @@ export function ReceivablesApp() {
         }
         open={receiptDialog}
         data={data}
+        contextProjectId={contextProjectId}
         initialReceivableId={operationTarget}
         onOpenChange={setReceiptDialog}
         onDone={done}
       />
       <ReceiptCorrectionDialog
         key={receiptCorrection?.id ?? 'receipt-correction-closed'}
-        record={receiptCorrection}
+        record={
+          data.receipts.find((row) => row.id === receiptCorrection?.id) ?? null
+        }
         data={data}
         onOpenChange={(open) => !open && setReceiptCorrection(null)}
         onDone={done}
@@ -946,285 +855,23 @@ export function ReceivablesApp() {
         }
         open={collectionDialog}
         data={data}
+        contextProjectId={contextProjectId}
+        initialAction={collectionInitialAction}
         initialReceivableId={operationTarget}
         onOpenChange={setCollectionDialog}
         onDone={done}
       />
       <CollectionCorrectionDialog
         key={collectionCorrection?.id ?? 'collection-correction-closed'}
-        record={collectionCorrection}
+        record={
+          data.collections.find((row) => row.id === collectionCorrection?.id) ??
+          null
+        }
         data={data}
         onOpenChange={(open) => !open && setCollectionCorrection(null)}
         onDone={done}
       />
-      <ProjectDetailDialog
-        key={selectedProject?.id ?? 'project-detail-closed'}
-        project={selectedProject}
-        data={data}
-        onOpenChange={(open) => !open && setSelectedProject(null)}
-        onDone={done}
-      />
-      <ReceivableDetail
-        item={
-          data.receivables.find((item) => item.id === selectedReceivableId) ??
-          null
-        }
-        data={data}
-        onClose={() => setSelectedReceivableId(null)}
-        onReceipt={(id) => {
-          setSelectedReceivableId(null);
-          setOperationTarget(id);
-          setReceiptDialog(true);
-        }}
-        onCollection={(id) => {
-          setSelectedReceivableId(null);
-          setOperationTarget(id);
-          setCollectionDialog(true);
-        }}
-      />
     </div>
-  );
-}
-
-function DashboardView({
-  data,
-  onNavigate,
-  onFilter,
-  onNewProject,
-  onSelect,
-}: {
-  data: BootstrapData;
-  onNavigate: (view: View) => void;
-  onFilter: (filter: ReceivableFilter) => void;
-  onNewProject: () => void;
-  onSelect: (id: string) => void;
-}) {
-  const metrics = [
-    {
-      label: '待确认应收',
-      value: String(data.summary.pendingConfirmationCount),
-      unit: '笔',
-      detail: '需由市级管理员确认',
-      icon: FileClock,
-      tone: 'brand',
-      filter: 'DRAFT' as const,
-    },
-    {
-      label: '剩余应收',
-      value: formatWan(data.summary.remainingAmountCents),
-      unit: '万元',
-      detail: `涉及 ${data.summary.totalReceivableCount} 笔应收`,
-      icon: CircleDollarSign,
-      tone: 'neutral',
-      filter: 'OUTSTANDING' as const,
-    },
-    {
-      label: '部分回款',
-      value: String(data.summary.partialCount),
-      unit: '笔',
-      detail: `累计实收 ${formatWan(data.summary.receivedAmountCents)} 万元`,
-      icon: TrendingUp,
-      tone: 'positive',
-      filter: 'PARTIAL' as const,
-    },
-    {
-      label: '逾期未留痕',
-      value: String(data.summary.overdueWithoutCollectionCount),
-      unit: '笔',
-      detail: '需优先安排催缴',
-      icon: AlertTriangle,
-      tone: 'warning',
-      filter: 'UNCOLLECTED' as const,
-    },
-  ];
-  const visibleReceivables = [...data.receivables]
-    .filter((item) => item.writeoffStatus !== 'PAID')
-    .sort((a, b) => {
-      const risk = { RED: 4, YELLOW: 3, BLUE: 2, NONE: 1 };
-      return risk[b.riskLevel] - risk[a.riskLevel];
-    })
-    .slice(0, 6);
-
-  return (
-    <>
-      <PageHeading
-        eyebrow="应收工作台"
-        title="今日应收概览"
-        description="优先处理待确认与逾期未留痕事项，确保每笔应收全程可追溯。"
-        actions={
-          <>
-            <Button variant="outline" onClick={() => onNavigate('imports')}>
-              <Download />
-              下载模板
-            </Button>
-            {data.session.role === 'CITY_ADMIN' ? (
-              <Button onClick={onNewProject}>
-                <Plus />
-                新建项目
-              </Button>
-            ) : null}
-          </>
-        }
-      />
-      <section
-        className="app-overview-strip"
-        aria-label="应收运营指标，点击查看对应明细"
-      >
-        {metrics.map((metric) => (
-          <button
-            key={metric.label}
-            type="button"
-            className="app-overview-metric"
-            onClick={() => onFilter(metric.filter)}
-          >
-            <span className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-              {metric.label}
-              <ChevronRight aria-hidden="true" className="size-3.5" />
-            </span>
-            <span className="mt-4 flex items-baseline gap-1.5">
-              <span className="app-overview-value">{metric.value}</span>
-              <span className="text-xs text-muted-foreground">
-                {metric.unit}
-              </span>
-            </span>
-            <span className="mt-3 block text-[11px] text-muted-foreground">
-              {metric.detail}
-            </span>
-          </button>
-        ))}
-      </section>
-      <div className="mt-4 grid grid-cols-1 gap-4 2xl:grid-cols-[minmax(0,1fr)_310px]">
-        <Card className="app-panel gap-0 py-0">
-          <CardHeader className="app-panel-header px-5 py-4">
-            <CardTitle className="text-[15px] font-semibold text-[var(--app-text-strong)]">
-              应收事项
-            </CardTitle>
-            <CardDescription className="text-xs">
-              默认按风险优先级展示
-            </CardDescription>
-            <CardAction>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-[var(--app-brand-strong)]"
-                onClick={() => onNavigate('receivables')}
-              >
-                查看全部 <ChevronRight />
-              </Button>
-            </CardAction>
-          </CardHeader>
-          <CardContent className="px-0">
-            {visibleReceivables.length ? (
-              <ReceivableTable
-                rows={visibleReceivables}
-                compact
-                onSelect={onSelect}
-              />
-            ) : (
-              <EmptyState
-                title="暂无待处理应收"
-                description="所有已登记应收均已结清，可在历史项目中查阅。"
-              />
-            )}
-          </CardContent>
-        </Card>
-        <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-1">
-          <Card className="app-action-card gap-3 py-4 ring-0">
-            <CardHeader className="px-4">
-              <CardTitle className="flex items-center gap-2 text-sm text-white">
-                <Clock3 className="size-4" /> 今日待办
-              </CardTitle>
-              <CardDescription className="text-xs text-blue-100">
-                {data.summary.pendingConfirmationCount +
-                  data.summary.overdueWithoutCollectionCount}{' '}
-                项事项需要处理
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2 px-4">
-              <button
-                type="button"
-                onClick={() => onFilter('DRAFT')}
-                className="app-action-row"
-              >
-                <span className="app-action-count" data-tone="neutral">
-                  {data.summary.pendingConfirmationCount}
-                </span>
-                <span className="flex-1 text-xs">确认新生成应收</span>
-                <ChevronRight className="size-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => onFilter('UNCOLLECTED')}
-                className="app-action-row"
-              >
-                <span className="app-action-count" data-tone="warning">
-                  {data.summary.overdueWithoutCollectionCount}
-                </span>
-                <span className="flex-1 text-xs">补充逾期催缴记录</span>
-                <ChevronRight className="size-4" />
-              </button>
-            </CardContent>
-          </Card>
-          <DistrictProgress data={data} />
-        </div>
-      </div>
-    </>
-  );
-}
-
-function DistrictProgress({ data }: { data: BootstrapData }) {
-  return (
-    <Card className="app-panel gap-3 py-4">
-      <CardHeader className="px-4">
-        <CardTitle className="flex items-center gap-2 text-sm text-[var(--app-text-strong)]">
-          <Building2 className="size-4 text-[var(--app-brand)]" /> 区县回款进度
-        </CardTitle>
-        <CardDescription className="text-xs">
-          当前可见项目累计实收占比
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3.5 px-4">
-        {data.districts
-          .filter(
-            (district) =>
-              data.session.role === 'CITY_ADMIN' ||
-              district.id === data.session.districtId,
-          )
-          .map((district) => {
-            const projects = data.projects.filter(
-              (item) => item.districtId === district.id,
-            );
-            const receivable = projects.reduce(
-              (sum, item) => sum + item.receivableAmountCents,
-              0,
-            );
-            const received = projects.reduce(
-              (sum, item) => sum + item.receivedAmountCents,
-              0,
-            );
-            const progress =
-              receivable > 0 ? Math.round((received / receivable) * 100) : 0;
-            return (
-              <div key={district.id}>
-                <div className="mb-1.5 flex items-center justify-between text-xs">
-                  <span className="font-medium text-[var(--app-text)]">
-                    {district.name}
-                  </span>
-                  <span className="text-[var(--app-text-soft)]">
-                    {progress}%
-                  </span>
-                </div>
-                <progress
-                  className="app-progress-native"
-                  aria-label={`${district.name}回款进度`}
-                  max={100}
-                  value={progress}
-                />
-              </div>
-            );
-          })}
-      </CardContent>
-    </Card>
   );
 }
 
@@ -1331,167 +978,6 @@ function ReceivableTable({
         ))}
       </TableBody>
     </Table>
-  );
-}
-
-function ProjectsView({
-  data,
-  archived,
-  onNew,
-  onNewNode,
-  onSelectProject,
-}: {
-  data: BootstrapData;
-  archived: boolean;
-  onNew: () => void;
-  onNewNode: () => void;
-  onSelectProject: (project: ProjectRecord) => void;
-}) {
-  const [search, setSearch] = React.useState('');
-  const rows = data.projects.filter(
-    (item) =>
-      Boolean(item.archivedAt) === archived &&
-      [item.projectCode, item.name, item.contractCode, item.customerName]
-        .join(' ')
-        .toLowerCase()
-        .includes(search.toLowerCase()),
-  );
-  const canCreate = data.session.role === 'CITY_ADMIN';
-  const canNode = data.session.role !== 'DISTRICT_OPERATOR' && !archived;
-  return (
-    <>
-      <PageHeading
-        eyebrow={archived ? '历史项目' : '项目管理'}
-        title={archived ? '已结清项目' : '项目全生命周期台账'}
-        description={
-          archived
-            ? '项目仅做逻辑归档，回款、催缴和审计证据继续保留。'
-            : '管理项目、合同附件与付款节点，项目编码由系统自动生成。'
-        }
-        actions={
-          <>
-            {canNode ? (
-              <Button variant="outline" onClick={onNewNode}>
-                <ReceiptText /> 新增付款节点
-              </Button>
-            ) : null}
-            {canCreate && !archived ? (
-              <Button onClick={onNew}>
-                <Plus /> 新建项目
-              </Button>
-            ) : null}
-          </>
-        }
-      />
-      <DataPanel
-        title={archived ? '历史项目列表' : '进行中项目'}
-        description={`共 ${rows.length} 个项目`}
-        actions={
-          <SearchField
-            value={search}
-            onChange={setSearch}
-            placeholder="项目、合同或客户"
-            label="搜索项目、合同或客户"
-            className="w-[260px]"
-          />
-        }
-      >
-        {rows.length ? (
-          <Table aria-label={archived ? '历史项目列表' : '进行中项目列表'}>
-            <TableHeader>
-              <TableRow className="app-table-head-row">
-                <TableHead className="pl-5">项目</TableHead>
-                <TableHead>区县 / 客户</TableHead>
-                <TableHead>合同金额</TableHead>
-                <TableHead>应收 / 实收</TableHead>
-                <TableHead>回款进度</TableHead>
-                <TableHead>项目状态</TableHead>
-                <TableHead className="pr-5">操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((project) => {
-                const progress =
-                  project.receivableAmountCents > 0
-                    ? Math.min(
-                        100,
-                        Math.round(
-                          (project.receivedAmountCents /
-                            project.receivableAmountCents) *
-                            100,
-                        ),
-                      )
-                    : 0;
-                return (
-                  <TableRow key={project.id}>
-                    <TableCell className="py-3 pl-5">
-                      <p className="app-data-title">{project.name}</p>
-                      <p className="app-data-code">
-                        {project.projectCode} · {project.contractCode}
-                      </p>
-                    </TableCell>
-                    <TableCell>
-                      <p className="text-xs">{project.districtName}</p>
-                      <p className="mt-0.5 text-[11px] text-muted-foreground">
-                        {project.customerName}
-                      </p>
-                    </TableCell>
-                    <TableCell className="text-xs font-medium">
-                      {formatYuan(project.contractAmountCents)}
-                    </TableCell>
-                    <TableCell>
-                      <p className="text-xs">
-                        {formatYuan(project.receivableAmountCents)}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">
-                        实收 {formatYuan(project.receivedAmountCents)}
-                      </p>
-                    </TableCell>
-                    <TableCell>
-                      <div className="w-28">
-                        <div className="mb-1 flex justify-between text-[10px]">
-                          <span>{progress}%</span>
-                          <span className="text-muted-foreground">
-                            {project.receivableCount} 节点
-                          </span>
-                        </div>
-                        <progress
-                          className="app-progress-native"
-                          aria-label={`${project.name}回款进度`}
-                          max={100}
-                          value={progress}
-                        />
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">{project.status}</Badge>
-                    </TableCell>
-                    <TableCell className="pr-5">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => onSelectProject(project)}
-                      >
-                        查看详情
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        ) : (
-          <EmptyState
-            title={archived ? '暂无历史项目' : '暂无符合条件的项目'}
-            description={
-              archived
-                ? '项目全部应收结清后会自动进入这里。'
-                : '尝试清除搜索条件或新建项目。'
-            }
-          />
-        )}
-      </DataPanel>
-    </>
   );
 }
 
@@ -2427,11 +1913,13 @@ function ProjectDialog({
   data,
   onOpenChange,
   onDone,
+  onCreated,
 }: {
   open: boolean;
   data: BootstrapData;
   onOpenChange: (open: boolean) => void;
   onDone: (message: string) => Promise<void>;
+  onCreated?: (id: string) => void;
 }) {
   const [tags, setTags] = React.useState<string[]>([]);
   const [busy, setBusy] = React.useState(false);
@@ -2455,6 +1943,7 @@ function ProjectDialog({
       );
       onOpenChange(false);
       await onDone(`项目 ${result.projectCode} 已创建`);
+      onCreated?.(result.id);
     } catch (err) {
       setError(describeError(err));
     } finally {
@@ -2608,17 +2097,24 @@ function ProjectDialog({
 function NodeDialog({
   open,
   data,
+  contextProjectId,
   onOpenChange,
   onDone,
 }: {
   open: boolean;
   data: BootstrapData;
+  contextProjectId?: string | null;
   onOpenChange: (open: boolean) => void;
   onDone: (message: string) => Promise<void>;
 }) {
   const projects = React.useMemo(
-    () => data.projects.filter((project) => !project.archivedAt),
-    [data.projects],
+    () =>
+      data.projects.filter((project) =>
+        contextProjectId
+          ? project.id === contextProjectId
+          : !project.archivedAt,
+      ),
+    [data.projects, contextProjectId],
   );
   const [projectId, setProjectId] = React.useState(() => projects[0]?.id ?? '');
   const [busy, setBusy] = React.useState(false);
@@ -2626,6 +2122,10 @@ function NodeDialog({
 
   async function submit(event: React.SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (busy || !projects.some((p) => p.id === projectId)) {
+      setError('当前项目已不可用，请关闭面板并刷新项目。');
+      return;
+    }
     const form = new FormData(event.currentTarget);
     setBusy(true);
     setError(null);
@@ -2650,8 +2150,8 @@ function NodeDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="lc-operation-sheet">
         <DialogHeader>
           <DialogTitle>新增付款节点</DialogTitle>
           <DialogDescription>
@@ -2786,32 +2286,38 @@ function NodeDialog({
             </DialogFooter>
           </>
         )}
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }
 
 function ReceiptDialog({
   open,
   data,
+  contextProjectId,
   initialReceivableId,
   onOpenChange,
   onDone,
 }: {
   open: boolean;
   data: BootstrapData;
+  contextProjectId?: string | null;
   initialReceivableId?: string | null;
   onOpenChange: (open: boolean) => void;
   onDone: (message: string) => Promise<void>;
 }) {
   const candidates = React.useMemo(
     () =>
-      data.receivables.filter(
+      contextualCandidates(
+        data.receivables,
+        contextProjectId,
+        initialReceivableId,
+      ).filter(
         (item) =>
           item.confirmationStatus === 'CONFIRMED' &&
           item.remainingAmountCents > 0,
       ),
-    [data.receivables],
+    [data.receivables, contextProjectId, initialReceivableId],
   );
   const [receivableId, setReceivableId] = React.useState(
     () =>
@@ -2829,6 +2335,12 @@ function ReceiptDialog({
   const selected = candidates.find((item) => item.id === receivableId);
   async function submit(event: React.SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (busy || !candidates.some((r) => r.id === receivableId)) {
+      setError(
+        '当前应收已结清或不再可用；不会改选其他节点，请关闭面板后刷新。',
+      );
+      return;
+    }
     const form = new FormData(event.currentTarget);
     setBusy(true);
     setError(null);
@@ -2858,8 +2370,8 @@ function ReceiptDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="lc-operation-sheet">
         <DialogHeader>
           <DialogTitle>登记回款</DialogTitle>
           <DialogDescription>
@@ -2975,8 +2487,8 @@ function ReceiptDialog({
             </DialogFooter>
           </>
         )}
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -3006,6 +2518,10 @@ function ReceiptCorrectionDialog({
 
   async function submit(event: React.SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (busy || currentRecord.status !== 'VALID') {
+      setError('原记录已作废或当前不可更正，请刷新后查看。');
+      return;
+    }
     const form = new FormData(event.currentTarget);
     setBusy(true);
     setError(null);
@@ -3042,8 +2558,8 @@ function ReceiptCorrectionDialog({
 
   const maxCents = (receivable?.remainingAmountCents ?? 0) + record.amountCents;
   return (
-    <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
+    <Sheet open onOpenChange={onOpenChange}>
+      <SheetContent className="lc-operation-sheet">
         <DialogHeader>
           <DialogTitle>作废并更正回款</DialogTitle>
           <DialogDescription>
@@ -3126,32 +2642,40 @@ function ReceiptCorrectionDialog({
             </Button>
           </DialogFooter>
         </form>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }
 
 function CollectionDialog({
   open,
   data,
+  contextProjectId,
   initialReceivableId,
+  initialAction = 'WECHAT',
   onOpenChange,
   onDone,
 }: {
   open: boolean;
   data: BootstrapData;
+  contextProjectId?: string | null;
   initialReceivableId?: string | null;
+  initialAction?: CollectionAction;
   onOpenChange: (open: boolean) => void;
   onDone: (message: string) => Promise<void>;
 }) {
   const candidates = React.useMemo(
     () =>
-      data.receivables.filter(
+      contextualCandidates(
+        data.receivables,
+        contextProjectId,
+        initialReceivableId,
+      ).filter(
         (item) =>
           item.confirmationStatus === 'CONFIRMED' &&
           item.writeoffStatus !== 'PAID',
       ),
-    [data.receivables],
+    [data.receivables, contextProjectId, initialReceivableId],
   );
   const [receivableId, setReceivableId] = React.useState(
     () =>
@@ -3159,7 +2683,7 @@ function CollectionDialog({
       candidates[0]?.id ??
       '',
   );
-  const [action, setAction] = React.useState<CollectionAction>('WECHAT');
+  const [action, setAction] = React.useState<CollectionAction>(initialAction);
   const [file, setFile] = React.useState<File | null>(null);
   const [uploaded, setUploaded] = React.useState<UploadedAttachment | null>(
     null,
@@ -3170,6 +2694,12 @@ function CollectionDialog({
   const formal = requiresCollectionAttachment(action);
   async function submit(event: React.SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (busy || !candidates.some((r) => r.id === receivableId)) {
+      setError(
+        '当前应收已结清或不再可用；不会改选其他节点，请关闭面板后刷新。',
+      );
+      return;
+    }
     const form = new FormData(event.currentTarget);
     if (formal && !file && !uploaded) {
       setError('正式函件必须上传 PDF、JPG 或 PNG 附件');
@@ -3203,8 +2733,8 @@ function CollectionDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="lc-operation-sheet">
         <DialogHeader>
           <DialogTitle>新增催缴动作</DialogTitle>
           <DialogDescription>
@@ -3313,8 +2843,8 @@ function CollectionDialog({
             </DialogFooter>
           </>
         )}
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -3348,6 +2878,10 @@ function CollectionCorrectionDialog({
 
   async function submit(event: React.SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (busy || currentRecord.status !== 'VALID') {
+      setError('原记录已作废或当前不可更正，请刷新后查看。');
+      return;
+    }
     const form = new FormData(event.currentTarget);
     const inheritedAttachmentId = currentRecord.attachmentId ?? null;
     if (formal && !file && !uploaded && !inheritedAttachmentId) {
@@ -3388,8 +2922,8 @@ function CollectionCorrectionDialog({
   }
 
   return (
-    <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
+    <Sheet open onOpenChange={onOpenChange}>
+      <SheetContent className="lc-operation-sheet">
         <DialogHeader>
           <DialogTitle>作废并更正催缴</DialogTitle>
           <DialogDescription>
@@ -3477,200 +3011,7 @@ function CollectionCorrectionDialog({
             </Button>
           </DialogFooter>
         </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function ProjectDetailDialog({
-  project,
-  data,
-  onOpenChange,
-  onDone,
-}: {
-  project: ProjectRecord | null;
-  data: BootstrapData;
-  onOpenChange: (open: boolean) => void;
-  onDone: (message: string) => Promise<void>;
-}) {
-  const [file, setFile] = React.useState<File | null>(null);
-  const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-
-  if (!project) return null;
-  const currentProject = project;
-  const nodes = data.receivables.filter(
-    (item) => item.projectId === currentProject.id,
-  );
-  const attachments = data.attachments.filter(
-    (item) =>
-      item.entityType === 'PROJECT' && item.entityId === currentProject.id,
-  );
-
-  async function submitAttachment(
-    event: React.SyntheticEvent<HTMLFormElement>,
-  ) {
-    event.preventDefault();
-    if (!file) {
-      setError('请选择合同附件');
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      await uploadAttachment(file, 'PROJECT', currentProject.id);
-      setFile(null);
-      await onDone('合同附件已保存到本地对象存储');
-    } catch (err) {
-      setError(describeError(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-5xl">
-        <DialogHeader>
-          <DialogTitle>{project.name}</DialogTitle>
-          <DialogDescription>
-            {project.projectCode} · {project.contractCode} ·{' '}
-            {project.districtName}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            ['合同金额', formatYuan(project.contractAmountCents)],
-            ['累计应收', formatYuan(project.receivableAmountCents)],
-            ['累计实收', formatYuan(project.receivedAmountCents)],
-            ['项目状态', project.archivedAt ? '已归档' : project.status],
-          ].map(([label, value]) => (
-            <SummaryTile key={label} label={label} value={value} />
-          ))}
-        </div>
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-          <Card className="app-subpanel gap-0 shadow-none">
-            <CardHeader className="app-panel-header px-4 py-3">
-              <CardTitle className="text-sm">付款节点</CardTitle>
-              <CardDescription>共 {nodes.length} 个节点</CardDescription>
-            </CardHeader>
-            <CardContent className="px-0">
-              {nodes.length ? (
-                <Table aria-label={`${project.name}付款节点`}>
-                  <TableHeader>
-                    <TableRow className="app-table-head-row">
-                      <TableHead className="pl-4">序号 / 应收</TableHead>
-                      <TableHead>款项</TableHead>
-                      <TableHead>金额</TableHead>
-                      <TableHead>付款日</TableHead>
-                      <TableHead>状态</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {nodes.map((node) => (
-                      <TableRow key={node.id}>
-                        <TableCell className="pl-4 text-xs">
-                          <p>第 {node.sequenceNo} 节点</p>
-                          <p className="font-mono text-[10px] text-muted-foreground">
-                            {node.receivableCode}
-                          </p>
-                        </TableCell>
-                        <TableCell className="text-xs">
-                          {node.paymentType}
-                        </TableCell>
-                        <TableCell className="text-xs font-medium">
-                          {formatYuan(node.amountCents)}
-                        </TableCell>
-                        <TableCell className="text-xs">
-                          {node.dueDate}
-                        </TableCell>
-                        <TableCell>
-                          <WriteoffBadge status={node.writeoffStatus} />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <EmptyState
-                  title="暂无付款节点"
-                  description="可从项目管理或应收管理新增节点。"
-                />
-              )}
-            </CardContent>
-          </Card>
-          <Card className="app-subpanel h-fit shadow-none">
-            <CardHeader>
-              <CardTitle className="text-sm">合同附件</CardTitle>
-              <CardDescription>
-                PDF、JPG、PNG，单文件不超过 10MB
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {attachments.length ? (
-                <div className="space-y-2">
-                  {attachments.map((attachment) => (
-                    <a
-                      key={attachment.id}
-                      href={`/api/attachments/${attachment.id}`}
-                      className="app-attachment-link"
-                    >
-                      <Paperclip className="size-4" />
-                      <span className="min-w-0 flex-1 truncate">
-                        {attachment.fileName}
-                      </span>
-                      <Download className="size-3.5" />
-                    </a>
-                  ))}
-                </div>
-              ) : (
-                <p className="app-empty-note">尚未上传合同扫描件。</p>
-              )}
-              {data.session.role === 'CITY_ADMIN' ? (
-                <form onSubmit={submitAttachment} className="space-y-3">
-                  <Input
-                    type="file"
-                    accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
-                    onChange={(event) =>
-                      setFile(event.target.files?.[0] ?? null)
-                    }
-                  />
-                  <ErrorText error={error} />
-                  <Button
-                    type="submit"
-                    variant="outline"
-                    className="w-full"
-                    disabled={busy || !file}
-                    aria-busy={busy}
-                  >
-                    {busy ? (
-                      <LoaderCircle className="animate-spin" />
-                    ) : (
-                      <UploadCloud />
-                    )}
-                    上传合同附件
-                  </Button>
-                </form>
-              ) : null}
-            </CardContent>
-          </Card>
-        </div>
-        <div className="app-detail-note">
-          客户：{project.customerName}（{project.customerType}） · 对接人：
-          {project.customerContact}
-          <br />
-          客户经理：{project.accountManager} · 交付经理：
-          {project.deliveryManager} · 项目交付负责人：{project.deliveryOwner}
-          <br />
-          合同日期：{project.contractDate} · 金额构成：
-          {project.amountComposition} · 付费编码：{project.billingCode || '—'}
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            关闭
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }

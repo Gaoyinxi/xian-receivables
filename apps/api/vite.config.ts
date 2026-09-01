@@ -13,6 +13,7 @@ export default defineConfig(({ mode }) => {
       };
   return {
     root,
+    ssr: { noExternal: ['zod'] },
     resolve: {
       alias: {
         '@': root,
@@ -23,7 +24,9 @@ export default defineConfig(({ mode }) => {
     build: {
       ssr: true,
       target: 'node24',
-      outDir: testing ? '.selfhost-build/integrity' : '.selfhost-build/api',
+      outDir: testing
+        ? '.selfhost-build/integrity'
+        : `${process.env.RECEIVABLES_BUILD_DIR || '.selfhost-build'}/api`,
       sourcemap: false,
       rolldownOptions: {
         input,

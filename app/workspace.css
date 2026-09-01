@@ -1,0 +1,162 @@
+/* Workspace-specific composition. Shared colors, spacing and motion live in globals.css. */
+.app-page-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--app-space-4);
+  margin-bottom: var(--app-space-5);
+}
+.app-page-heading h1,
+.lc-feed-heading h1,
+.lc-project-title h1 {
+  font-family: var(--app-font-heading);
+}
+.app-brand-caption {
+  display: block;
+  margin-top: var(--app-space-1);
+  color: var(--app-text-soft);
+  font-size: 0.6875rem;
+}
+.app-location {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-2);
+  font-size: 0.75rem;
+  min-width: 0;
+}
+.app-location > span {
+  color: var(--app-text-soft);
+  flex-shrink: 0;
+}
+.app-location strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.app-project-search {
+  gap: var(--app-space-2);
+  font-size: 0.75rem;
+}
+.app-project-search kbd {
+  font-size: 0.625rem;
+  color: var(--app-text-soft);
+  margin-left: var(--app-space-4);
+}
+.app-project-picker [data-slot='command-input'] {
+  min-height: 2.75rem;
+  font-size: 1rem;
+}
+.app-project-picker [data-slot='command-input-wrapper'] > div {
+  height: auto !important;
+}
+.app-project-picker [data-slot='command-item'] {
+  min-height: 3.5rem;
+  cursor: pointer;
+}
+.app-project-picker strong,
+.app-project-picker small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.app-project-picker small {
+  font-size: 0.75rem;
+  color: var(--app-text-soft);
+  margin-top: var(--app-space-1);
+}
+.app-sync-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--app-space-2);
+  font-size: 0.75rem;
+  color: var(--app-text-soft);
+  margin-bottom: var(--app-space-3);
+}
+.app-sync-status [data-stale='true'] {
+  color: var(--app-warning);
+}
+.app-workspace-skeleton {
+  width: min(70rem, 100%);
+  padding: var(--app-space-6);
+}
+.app-workspace-skeleton > div {
+  margin-top: var(--app-space-4);
+}
+.app-workspace-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--app-space-4);
+}
+.lc-kpis dd,
+.lc-project-totals dd {
+  font-family: var(--font-mono);
+  letter-spacing: -0.04em;
+}
+.lc-cockpit-summary .lc-disclosure {
+  padding: var(--app-space-2) 0 0;
+}
+.lc-cockpit-summary .lc-disclosure summary {
+  min-height: 2rem;
+}
+@media (min-width: 1280px) {
+  .lc-kpis {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: var(--app-space-4);
+  }
+  .lc-kpis dd {
+    font-size: clamp(0.875rem, 1.1vw, 1.25rem);
+  }
+  .lc-kpis > div:not(:first-child) {
+    border-left: 1px solid var(--app-border);
+    padding-left: var(--app-space-4);
+  }
+  .lc-task-body {
+    display: grid;
+    grid-template-columns: minmax(12rem, 1fr) minmax(14rem, 1.2fr) auto;
+    gap: var(--app-space-5);
+    align-items: center;
+  }
+  .lc-task-reason {
+    margin: 0;
+  }
+  .lc-task-actions {
+    flex-direction: column;
+    align-items: flex-end;
+  }
+  .lc-task-actions > span {
+    font-size: 0.6875rem;
+  }
+}
+@media (max-width: 767px) {
+  .app-page-heading {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .app-location {
+    max-width: 38vw;
+  }
+  .app-location > span {
+    display: none;
+  }
+  .app-project-search {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    padding: 0.5rem;
+  }
+  .app-project-search span,
+  .app-project-search kbd {
+    display: none;
+  }
+  .lc-cockpit-feed {
+    padding-inline: var(--app-space-3);
+  }
+  .app-workspace-skeleton-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-workspace-skeleton [data-slot='skeleton'] {
+    animation: none;
+  }
+}

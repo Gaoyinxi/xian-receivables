@@ -12,9 +12,10 @@ const nativeRuntime = process.argv.includes('--node');
 
 async function getFreePort() {
   const server = createServer();
+  const host = nativeRuntime ? '127.0.0.1' : 'localhost';
   await new Promise((resolve, reject) => {
     server.once('error', reject);
-    server.listen(0, '127.0.0.1', resolve);
+    server.listen(0, host, resolve);
   });
   const address = server.address();
   if (!address || typeof address === 'string') {
@@ -69,7 +70,10 @@ async function stopServer(child) {
 
 const port = await getFreePort();
 const statePath = await mkdtemp(join(tmpdir(), 'receivables-integration-'));
-const baseUrl = `http://127.0.0.1:${port}`;
+// Sites-backed Vinext binds its local development server to localhost (IPv6 on
+// macOS) even when Vite receives an IPv4 --host flag. Keep the native runtime
+// pinned to IPv4, but probe the Sites runtime through its advertised host.
+const baseUrl = `http://${nativeRuntime ? '127.0.0.1' : 'localhost'}:${port}`;
 const testEnvironment = {
   ...process.env,
   RECEIVABLES_STATE_PATH: statePath,
@@ -144,6 +148,7 @@ try {
       '--test-concurrency=1',
       'tests/api-flow.test.ts',
       'tests/integrity.test.ts',
+      'tests/api-version.test.ts',
     ],
     {
       cwd: projectRoot,

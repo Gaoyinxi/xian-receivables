@@ -1,0 +1,40 @@
+services:
+  app:
+    build: .
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 20s
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    ports:
+      - '127.0.0.1:4173:4173'
+    environment:
+      NODE_ENV: production
+      WEB_PORT: '4173'
+      API_PORT: '4174'
+      WEB_BIND_HOST: '0.0.0.0'
+      CONTAINER_MODE: '1'
+      RECEIVABLES_DATA_DIR: /app/.data/selfhost
+      PUBLIC_ORIGIN: '${PUBLIC_ORIGIN:-}'
+      LOG_LEVEL: '${LOG_LEVEL:-info}'
+    volumes:
+      - receivables-data:/app/.data
+      - receivables-runtime:/app/.selfhost
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://127.0.0.1:4173/api/v1/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+volumes:
+  receivables-data:
+  receivables-runtime:

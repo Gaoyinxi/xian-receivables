@@ -1,14 +1,19 @@
 import { timingSafeEqual } from 'node:crypto';
 import { ensureDatabase } from '../../../db/bootstrap';
-import { getRawDb, isDemoSeedEnabled } from '../../../db/adapters/node';
+import {
+  getFilesBucket,
+  getRawDb,
+  isDemoSeedEnabled,
+} from '../../../db/adapters/node';
 import { dispatchBusiness } from '../../../lib/server/router';
-import { BusinessError, ok, routeError } from '../../../lib/server/api';
+import { BusinessError, routeError } from '../../../lib/server/api';
 import { createFetchServer } from './http';
 import { allowedOrigins, portFromEnv, requireGatewayToken } from './config';
 import { initializeAuthSchema } from './auth-schema';
 import { handleAuth, prepareLogin } from './auth';
 import { requireSession, verifyCsrf } from './session';
 import { acquireApiLock } from './process-lock';
+import { createHealthHandler } from './health';
 
 process.umask(0o077);
 if (isDemoSeedEnabled() || process.env.DEMO_MODE || process.env.SEED_DEMO)
@@ -28,13 +33,26 @@ if (
   throw new Error('尚未建立管理员账号，请先运行 npm run selfhost:init');
 }
 await prepareLogin();
+const files = getFilesBucket();
+const health = createHealthHandler(
+  async () => {
+    const schema = await getRawDb()
+      .prepare(
+        "SELECT 1 AS ready FROM sqlite_master WHERE type = 'table' AND name = 'app_meta'",
+      )
+      .first<{ ready: number }>();
+    if (schema?.ready !== 1) throw new Error('database schema unavailable');
+    await files.checkReady();
+  },
+  () => console.error(JSON.stringify({ event: 'health_readiness_failed' })),
+);
 
 const server = createFetchServer(
   async (request) => {
     try {
       const path = new URL(request.url).pathname;
-      if (path === '/api/health' && request.method === 'GET')
-        return ok({ status: 'ready', mode: 'selfhost' });
+      const healthResponse = await health(request);
+      if (healthResponse) return healthResponse;
       const mutation = !['GET', 'HEAD'].includes(request.method);
       if (mutation) {
         if (

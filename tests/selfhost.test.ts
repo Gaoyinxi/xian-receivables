@@ -10,13 +10,17 @@ import { request as httpRequest } from 'node:http';
 import { randomBytes, createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import type { BootstrapData, DemoSession } from '../lib/types';
+import type { VersionedResponse } from '../lib/api-contract';
+type V1Failure = Extract<VersionedResponse<never>, { success: false }>;
 
 const exec = promisify(execFile);
+const buildDirectory = process.env.RECEIVABLES_BUILD_DIR || '.selfhost-build';
 // Node's fetch can replace Host. Use the HTTP transport when testing tunnel-origin headers,
 // so the gateway sees the actual header bytes instead of a silently normalised test request.
 async function wireRequest(
   url: string,
   init: RequestInit = {},
+  rawPath?: string,
 ): Promise<Response> {
   const source = new Request(url, init);
   const body = ['GET', 'HEAD'].includes(source.method)
@@ -25,7 +29,11 @@ async function wireRequest(
   return new Promise((resolve, reject) => {
     const request = httpRequest(
       url,
-      { method: source.method, headers: Object.fromEntries(source.headers) },
+      {
+        method: source.method,
+        headers: Object.fromEntries(source.headers),
+        ...(rawPath ? { path: rawPath } : {}),
+      },
       (response) => {
         const parts: Buffer[] = [];
         response.on('data', (part) => parts.push(part));
@@ -82,21 +90,29 @@ void test(
       PUBLIC_ORIGIN: publicOrigin,
     };
     const cli = (...args: string[]) =>
-      exec(process.execPath, ['.selfhost-build/api/admin.mjs', ...args], {
+      exec(process.execPath, [join(buildDirectory, 'api/admin.mjs'), ...args], {
         env,
       });
     const backupCli = (...args: string[]) =>
-      exec(process.execPath, ['.selfhost-build/api/backup.mjs', ...args], {
-        env,
-      });
+      exec(
+        process.execPath,
+        [join(buildDirectory, 'api/backup.mjs'), ...args],
+        {
+          env,
+        },
+      );
     let api: ReturnType<typeof spawn> | undefined;
     let gateway: ReturnType<typeof spawn> | undefined;
     let logs = '';
     const launch = (entry: string) => {
-      const child = spawn(process.execPath, [entry], {
-        env,
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
+      const child = spawn(
+        process.execPath,
+        [entry.replace('.selfhost-build', buildDirectory)],
+        {
+          env,
+          stdio: ['ignore', 'pipe', 'pipe'],
+        },
+      );
       child.stdout?.on('data', (data) => {
         logs += String(data);
       });
@@ -148,16 +164,20 @@ void test(
         if (this.publicHost) headers.Host = new URL(publicOrigin).host;
         if (!(body instanceof FormData))
           headers['Content-Type'] = 'application/json';
-        const response = await wireRequest(`${base}${path}`, {
-          method,
-          headers,
-          body:
-            body === undefined
-              ? undefined
-              : body instanceof FormData
-                ? body
-                : JSON.stringify(body),
-        });
+        const response = await wireRequest(
+          `${base}${path}`,
+          {
+            method,
+            headers,
+            body:
+              body === undefined
+                ? undefined
+                : body instanceof FormData
+                  ? body
+                  : JSON.stringify(body),
+          },
+          path,
+        );
         const cookie = response.headers.get('set-cookie');
         if (cookie) this.cookie = cookie.split(';')[0];
         return response;
@@ -202,6 +222,21 @@ void test(
         this.csrf = payload.data.csrfToken;
         this.session = payload.data.session;
         return response;
+      }
+      async okV1<T = Record<string, unknown>>(
+        path: string,
+        method = 'GET',
+        body?: unknown,
+      ) {
+        const response = await this.raw(`/api/v1/${path}`, method, body);
+        const payload = (await response.json()) as VersionedResponse<T>;
+        assert.equal(
+          payload.success,
+          true,
+          `${path}: ${response.status} ${payload.error?.code}`,
+        );
+        assert.equal(payload.meta.apiVersion, 'v1');
+        return payload.data as T;
       }
       async changePassword(currentPassword: string, newPassword: string) {
         const state = await this.ok<{
@@ -460,7 +495,7 @@ void test(
       });
       await t.test('正式凭据下多次回款、更正、授权附件与归档', async () => {
         receiptId = (
-          await operator.ok<{ id: string }>('/api/receipts', 'POST', {
+          await operator.okV1<{ id: string }>('receipts', 'POST', {
             receivableId,
             amountYuan: '50',
             receivedDate: '2026-08-31',
@@ -478,7 +513,7 @@ void test(
           ).status,
           403,
         );
-        await admin.ok('/api/receipts/correct', 'POST', {
+        await admin.okV1('receipts/correct', 'POST', {
           originalId: receiptId,
           receivableId,
           amountYuan: '30',
@@ -541,6 +576,127 @@ void test(
           403,
         );
       });
+      await t.test(
+        'v1 在真实网关保留认证、上传、CSRF、限额和附件字节语义',
+        async () => {
+          const anonymous = new Client();
+          const health = await anonymous.okV1('health');
+          const ready = await anonymous.okV1('health/ready');
+          const live = await anonymous.okV1('health/live');
+          assert.equal(health.status, 'ready');
+          assert.equal(ready.status, 'ready');
+          assert.equal(live.status, 'live');
+          assert.equal((await anonymous.okV1('auth/session')).session, null);
+          const blocked = await anonymous.raw('/api/v1/bootstrap');
+          assert.equal(blocked.status, 401);
+          assert.equal(
+            ((await blocked.json()) as V1Failure).error.code,
+            'SESSION_REQUIRED',
+          );
+          for (const prefix of [
+            '/api',
+            '/api/v1',
+            '/api/v1/x/..',
+            '/api/v1/x/%2e%2e',
+          ]) {
+            const large = await anonymous.raw(`${prefix}/auth/login`, 'POST', {
+              username: 'unknown',
+              password: 'a'.repeat(17000),
+            });
+            assert.equal(large.status, 413);
+            const body = (await large.json()) as {
+              error?: { code: string };
+              code?: string;
+            };
+            assert.equal(
+              prefix === '/api' ? body.code : body.error?.code,
+              'FILE_TOO_LARGE',
+            );
+          }
+          const requestId = blocked.headers.get('x-request-id');
+          assert.match(requestId!, /^[0-9a-f-]{36}$/);
+          for (const headers of [
+            { 'X-CSRF-Token': '' },
+            { Origin: 'https://evil.example' },
+          ] as Record<string, string>[]) {
+            const denied = await owner.raw(
+              '/api/v1/projects',
+              'POST',
+              {},
+              headers,
+            );
+            assert.equal(denied.status, 403);
+            assert.equal(((await denied.json()) as V1Failure).success, false);
+          }
+          const scoped = await outsider.okV1<BootstrapData>('bootstrap');
+          assert.equal(scoped.projects.length, 0);
+          const forbidden = await operator.raw(
+            '/api/v1/receivables/confirm',
+            'POST',
+            { id: receivableId },
+          );
+          assert.equal(forbidden.status, 403);
+          const overpaid = await operator.raw('/api/v1/receipts', 'POST', {
+            receivableId,
+            amountYuan: '1',
+            receivedDate: '2026-08-31',
+          });
+          assert.equal(overpaid.status, 409);
+          assert.equal(
+            ((await overpaid.json()) as V1Failure).error.code,
+            'OVERPAYMENT',
+          );
+          const downloaded = await owner.raw(
+            `/api/v1/attachments/${attachmentId}`,
+          );
+          assert.equal(
+            downloaded.headers.get('content-type'),
+            'application/pdf',
+          );
+          assert.deepEqual(
+            new Uint8Array(await downloaded.arrayBuffer()),
+            bytes,
+          );
+          // Send raw dot segments on the wire; fetch/new URL alone normalize
+          // them before transmission and would hide a response-wrapper bug.
+          for (const segment of ['x/..', 'x/%2e%2e']) {
+            const normalizedDownload = await owner.raw(
+              `/api/v1/${segment}/attachments/${attachmentId}`,
+            );
+            assert.equal(normalizedDownload.status, 200);
+            assert.equal(
+              normalizedDownload.headers.get('content-type'),
+              'application/pdf',
+            );
+            assert.deepEqual(
+              new Uint8Array(await normalizedDownload.arrayBuffer()),
+              bytes,
+            );
+          }
+          const form = new FormData();
+          form.set('entityType', 'PROJECT');
+          form.set('entityId', projectId);
+          form.set(
+            'file',
+            new File(['bad'], 'bad.pdf', { type: 'application/pdf' }),
+          );
+          const invalid = await owner.raw('/api/v1/attachments', 'POST', form);
+          assert.equal(invalid.status, 415); // Passed multipart policy, rejected by file-signature validation.
+          const client = new Client(true);
+          const login = await client.raw('/api/v1/auth/login', 'POST', {
+            username: 'admin',
+            password,
+          });
+          const state = (await login.json()) as VersionedResponse<{
+            csrfToken: string;
+          }>;
+          assert.equal(state.success, true);
+          assert.match(login.headers.get('set-cookie')!, /Secure/);
+          client.csrf = state.data.csrfToken;
+          await client.okV1('auth/logout', 'POST', {});
+          assert.equal((await client.raw('/api/bootstrap')).status, 401);
+        },
+      );
       await t.test(
         '稳定用户身份、会话哈希、退出/过期/权限变更即时失效',
         async () => {

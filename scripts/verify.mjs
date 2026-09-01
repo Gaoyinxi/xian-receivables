@@ -15,6 +15,9 @@ const checks = [
       'tests/domain.test.ts',
       'tests/workbench.test.ts',
       'tests/templates.test.ts',
+      'tests/project-lifecycle.test.ts',
+      'tests/api-contract.test.ts',
+      'tests/health.test.ts',
     ],
   ],
   [

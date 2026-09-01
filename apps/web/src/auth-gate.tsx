@@ -10,15 +10,12 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { apiRequest, setCsrfToken } from '@/lib/api-client';
-import type { DemoSession } from '@/lib/types';
+import { setCsrfToken } from '@/lib/api-client';
+import { authService, type AuthState } from '@/services/auth';
 import { Login } from './login';
 import { PasswordForm } from './password-form';
 
-export interface AuthState {
-  session: DemoSession | null;
-  csrfToken: string | null;
-}
+export type { AuthState } from '@/services/auth';
 
 export function AuthGate() {
   const [auth, setAuth] = React.useState<AuthState | null>(null);
@@ -35,7 +32,7 @@ export function AuthGate() {
   const refresh = React.useCallback(async () => {
     const current = ++revision.current;
     try {
-      const state = await apiRequest<AuthState>('/api/auth/session');
+      const state = await authService.session();
       if (revision.current === current) accept(state);
     } catch (failure) {
       if (revision.current === current)
@@ -45,7 +42,8 @@ export function AuthGate() {
   React.useEffect(() => {
     let active = true;
     const current = ++revision.current;
-    void apiRequest<AuthState>('/api/auth/session')
+    void authService
+      .session()
       .then((state) => {
         if (active && current === revision.current) accept(state);
       })
@@ -76,7 +74,7 @@ export function AuthGate() {
     if (busy) return;
     setBusy(true);
     try {
-      await apiRequest('/api/auth/logout', { method: 'POST', body: '{}' });
+      await authService.logout();
       accept({ session: null, csrfToken: null });
       setAccountOpen(false);
     } catch (failure) {

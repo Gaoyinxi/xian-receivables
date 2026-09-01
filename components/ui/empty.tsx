@@ -81,24 +81,4 @@ function EmptyDescription({ className, ...props }: React.ComponentProps<'p'>) {
   );
 }
 
-function EmptyContent({ className, ...props }: React.ComponentProps<'div'>) {
-  return (
-    <div
-      data-slot="empty-content"
-      className={cn(
-        'gap-2.5 text-sm flex w-full max-w-sm min-w-0 flex-col items-center text-balance',
-        className,
-      )}
-      {...props}
-    />
-  );
-}
-
-export {
-  Empty,
-  EmptyHeader,
-  EmptyTitle,
-  EmptyDescription,
-  EmptyContent,
-  EmptyMedia,
-};
+export { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyMedia };

@@ -1,0 +1,26 @@
+name: Verify
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      LOG_LEVEL: silent
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --global pnpm@11.19.0
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm run typecheck
+      - run: pnpm run lint
+      - run: pnpm run test:unit
+      - run: pnpm run test:integration
+      - run: pnpm run build
+      - run: pnpm run selfhost:build
+      - run: pnpm run test:node
+      - run: pnpm run test:selfhost
+      - run: docker compose config --quiet

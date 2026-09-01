@@ -1,7 +1,8 @@
 import * as React from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { apiRequest, setCsrfToken } from '@/lib/api-client';
+import { setCsrfToken } from '@/lib/api-client';
+import { authService } from '@/services/auth';
 import type { AuthState } from './auth-gate';
 
 export function PasswordForm({
@@ -27,12 +28,9 @@ export function PasswordForm({
     setBusy(true);
     setError('');
     try {
-      const result = await apiRequest<AuthState>('/api/auth/password', {
-        method: 'POST',
-        body: JSON.stringify({
-          currentPassword: form.get('currentPassword'),
-          newPassword,
-        }),
+      const result = await authService.password({
+        currentPassword: form.get('currentPassword'),
+        newPassword,
       });
       setCsrfToken(result.csrfToken);
       onSuccess(result);

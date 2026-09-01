@@ -2,6 +2,14 @@
 
 面向市级管理员、区县管理员和区县填报人的中文管理工作台。现在支持前后端分离的电脑自托管：React/Vite 前端、独立 Node.js API、原生 SQLite 数据库、本机附件存储与 HTTPS 隧道。原有 Sites/D1/R2 私有演示版保留作为回退，两套数据库不混用。
 
+## 产品化重构与容器部署
+
+本轮新增紧凑业务工作区、项目快捷检索、前端 services/hooks 分层、兼容的 `/api/v1`、项目/回款服务与仓储分层，以及 Docker/Compose 和检查流水线。既有 API、数据库、权限及财务规则保持兼容。
+
+完整变更、容器启动命令、环境配置、验证结果和未完成事项见 [产品化重构交付记录](docs/PRODUCTIZATION.md)。Docker 镜像与公网部署仍需现场验证；源码构建通过不表示正在运行的正式进程已经升级。切换前先停写、备份，并保留旧构建；不要在服务运行时覆盖其构建目录。
+
+工程边界、目标目录和迁移路线见 [系统架构](docs/architecture/README.md)；关键取舍记录在 [ADR](docs/adr/0001-evolutionary-modular-architecture.md)，健康与故障恢复见 [运维说明](docs/operations/HEALTH_AND_RECOVERY.md)。
+
 ## 电脑作为服务器（当前交付方式）
 
 需要 Node.js ≥ 24.11.1。本机已经安装好依赖时：

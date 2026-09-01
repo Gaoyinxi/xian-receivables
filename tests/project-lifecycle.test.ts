@@ -5,6 +5,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { ProjectWorkspace } from '../components/receivables/project-workspace';
 import { BusinessCockpit } from '../components/receivables/business-cockpit';
 import { ProjectTimeline } from '../components/receivables/project-timeline';
+import { WorkspaceNavigation } from '../components/receivables/workspace-navigation';
+import { searchProjects } from '../lib/project-search';
 import { DEFAULT_RISK_RULES } from '../lib/domain';
 import {
   buildPortfolio,
@@ -20,6 +22,7 @@ import {
   projectHash,
   PROJECT_SECTIONS,
   PROJECT_SECTION_GROUPS,
+  NAV_GROUPS,
   type ProjectSection,
 } from '../lib/project-navigation';
 import { lifecycleSteps, projectEvents } from '../lib/project-activity';
@@ -93,6 +96,12 @@ const node = (overrides: Partial<ReceivableRecord> = {}): ReceivableRecord => ({
   collectionMissing: true,
   createdAt: '2026-01-01T00:00:00Z',
   ...overrides,
+});
+void test('项目搜索只在传入的授权数据中匹配，支持多词与空关键词', () => {
+  assert.deepEqual(searchProjects([project], '测试 HT-1'), [project]);
+  assert.deepEqual(searchProjects([project], ' ht-1 '), [project]);
+  assert.deepEqual(searchProjects([project], '不存在'), []);
+  assert.deepEqual(searchProjects([], ''), []);
 });
 const receipt = (overrides: Partial<ReceiptRecord> = {}): ReceiptRecord => ({
   id: 'rr',
@@ -419,6 +428,34 @@ void test('精简导航覆盖全部旧工作区且不改变项目深链接', () 
       parseWorkspaceHash(projectHash('p', section, 'r')).section,
       section,
     );
+  }
+});
+
+void test('玻璃导航在桌面与移动端保留四个业务入口及唯一当前分组', () => {
+  for (const group of NAV_GROUPS) {
+    for (const view of group.views) {
+      for (const mobile of [false, true]) {
+        const html = renderToStaticMarkup(
+          createElement(WorkspaceNavigation, {
+            view,
+            mobile,
+            onNavigate: () => {},
+          }),
+        );
+        assert.match(html, /class="[^"]*app-glass/);
+        assert.match(html, /aria-label="主导航"/);
+        assert.equal(
+          (html.match(/<button\b/g) ?? []).length,
+          NAV_GROUPS.length,
+        );
+        assert.equal((html.match(/aria-current="page"/g) ?? []).length, 1);
+        const active = html.match(
+          /<button[^>]*data-active="true"[^>]*>([\s\S]*?)<\/button>/,
+        );
+        assert.ok(active);
+        assert.ok(active[1].includes(`<span>${group.label}</span>`));
+      }
+    }
   }
 });
 

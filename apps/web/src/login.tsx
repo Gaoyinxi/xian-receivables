@@ -2,7 +2,8 @@ import * as React from 'react';
 import { CircleDollarSign, ArrowRight, LockKeyhole } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { apiRequest, setCsrfToken } from '@/lib/api-client';
+import { setCsrfToken } from '@/lib/api-client';
+import { authService } from '@/services/auth';
 import type { AuthState } from './auth-gate';
 
 export function Login({
@@ -19,12 +20,9 @@ export function Login({
     setBusy(true);
     setError('');
     try {
-      const result = await apiRequest<AuthState>('/api/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({
-          username: form.get('username'),
-          password: form.get('password'),
-        }),
+      const result = await authService.login({
+        username: form.get('username'),
+        password: form.get('password'),
       });
       setCsrfToken(result.csrfToken);
       onSuccess(result);

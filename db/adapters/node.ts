@@ -1,6 +1,6 @@
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { constants, mkdirSync, lstatSync, chmodSync } from 'node:fs';
-import { open, unlink } from 'node:fs/promises';
+import { access, open, unlink } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { dataDirectory } from '../../apps/api/src/config';
@@ -117,6 +117,13 @@ export class LocalFiles {
       this.directory,
       `${createHash('sha256').update(key).digest('hex')}.blob`,
     );
+  }
+  async checkReady() {
+    const info = lstatSync(this.directory);
+    if (!info.isDirectory() || info.isSymbolicLink()) {
+      throw new Error('附件目录不可用');
+    }
+    await access(this.directory, constants.R_OK | constants.W_OK);
   }
   async put(key: string, value: ArrayBuffer, _metadata?: unknown) {
     const path = this.pathForKey(key);

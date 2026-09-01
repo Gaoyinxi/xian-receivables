@@ -5,10 +5,13 @@ import {
   allowedOrigins,
   portFromEnv,
   requireGatewayToken,
+  webBindHost,
 } from '../api/src/config';
 import { BusinessError, routeError } from '../../lib/server/api';
 
-const webRoot = await realpath(resolve('.selfhost-build/web'));
+const webRoot = await realpath(
+  resolve(process.env.RECEIVABLES_BUILD_DIR || '.selfhost-build', 'web'),
+);
 const origins = allowedOrigins();
 const hosts = new Map(origins.map((origin) => [new URL(origin).host, origin]));
 const token = requireGatewayToken();
@@ -126,7 +129,7 @@ const server = createFetchServer(
   },
 );
 const port = portFromEnv('WEB_PORT', 4173);
-server.listen(port, '127.0.0.1', () =>
+server.listen(port, webBindHost(), () =>
   console.log(`Web ready: http://127.0.0.1:${port}`),
 );
 for (const signal of ['SIGTERM', 'SIGINT'] as const)

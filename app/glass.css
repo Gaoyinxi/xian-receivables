@@ -1,0 +1,113 @@
+/* Liquid Glass-inspired chrome, not a native refraction renderer.
+   No filters on application roots or financial content. */
+.app-glass,
+:is(.lc-operation-sheet, .app-project-dialog) > [data-slot='dialog-header'],
+:is(.lc-operation-sheet, .app-project-dialog) [data-slot='dialog-footer'] {
+  --app-text-soft: var(--app-glass-muted);
+  --muted-foreground: var(--app-glass-muted);
+  color: var(--app-glass-text);
+  background-color: var(--app-glass-solid);
+  background-image: var(--app-glass-sheen);
+  border-color: var(--app-glass-border);
+  box-shadow: var(--app-glass-shadow);
+}
+
+.app-topbar {
+  top: max(var(--app-chrome-gap), env(safe-area-inset-top));
+  margin: var(--app-chrome-gap) 1.5rem 0;
+  border: 1px solid var(--app-glass-border);
+  border-radius: var(--app-glass-radius);
+}
+
+/* Chrome stays separate from the opaque, scrollable form below it. */
+.app-project-dialog {
+  --app-dialog-padding: 1rem;
+}
+:is(.lc-operation-sheet, .app-project-dialog) > [data-slot='dialog-header'] {
+  margin: calc(-1 * var(--app-dialog-padding));
+  margin-bottom: 0;
+  padding: var(--app-dialog-padding);
+  padding-right: 3rem;
+  border-bottom: 1px solid var(--app-glass-border);
+  border-radius: var(--app-radius-large) var(--app-radius-large) 0 0;
+  box-shadow: inset 0 1px 0 var(--app-glass-selected);
+}
+.lc-operation-sheet > [data-slot='dialog-header'] {
+  border-radius: 0;
+}
+:is(.lc-operation-sheet, .app-project-dialog) [data-slot='dialog-footer'] {
+  box-shadow: inset 0 1px 0 var(--app-glass-selected);
+}
+
+/* A plain scrim focuses the task; avoid stacking a viewport blur with chrome. */
+[data-slot='sheet-overlay'] {
+  background: rgb(9 22 39 / 18%);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .app-glass,
+  :is(.lc-operation-sheet, .app-project-dialog) > [data-slot='dialog-header'],
+  :is(.lc-operation-sheet, .app-project-dialog) [data-slot='dialog-footer'] {
+    background-color: var(--app-chrome);
+    -webkit-backdrop-filter: blur(var(--app-glass-blur)) saturate(135%);
+    backdrop-filter: blur(var(--app-glass-blur)) saturate(135%);
+  }
+}
+
+@media (max-width: 767px) {
+  .app-topbar {
+    margin-inline: var(--app-chrome-gap);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .app-glass,
+  :is(.lc-operation-sheet, .app-project-dialog) > [data-slot='dialog-header'],
+  :is(.lc-operation-sheet, .app-project-dialog) [data-slot='dialog-footer'] {
+    background: var(--app-glass-solid);
+    border-color: var(--app-glass-border-strong);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: none;
+  }
+  .app-glass [aria-current='page'] {
+    outline: 1px solid var(--app-glass-border-strong);
+    outline-offset: -1px;
+  }
+  .app-glass [aria-current='page']:focus-visible {
+    outline: 2px solid var(--app-focus);
+    outline-offset: 2px;
+  }
+}
+
+@media (forced-colors: active) {
+  .app-glass,
+  :is(.lc-operation-sheet, .app-project-dialog) > [data-slot='dialog-header'],
+  :is(.lc-operation-sheet, .app-project-dialog) [data-slot='dialog-footer'] {
+    --app-text-soft: CanvasText;
+    --muted-foreground: CanvasText;
+    color: CanvasText;
+    background: Canvas;
+    border-color: CanvasText;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: none;
+  }
+  .app-glass [aria-current='page'] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+  .app-glass :focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-glass,
+  .app-glass button {
+    transition: none;
+  }
+}

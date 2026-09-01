@@ -95,7 +95,7 @@ async function shutdown(code = 0) {
           setTimeout(() => {
             if (child.exitCode === null && child.signalCode === null)
               child.kill('SIGKILL');
-          }, 8000).unref();
+          }, 12_000).unref();
         }),
     ),
   );
@@ -217,7 +217,7 @@ try {
     try {
       if (
         (
-          await fetch(`${localUrl}/api/health`, {
+          await fetch(`${localUrl}/api/v1/health/ready`, {
             signal: AbortSignal.timeout(2000),
           })
         ).ok

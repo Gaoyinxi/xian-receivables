@@ -25,7 +25,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: `${root}.selfhost-build/web`,
+    outDir: `${root}${process.env.RECEIVABLES_BUILD_DIR || '.selfhost-build'}/web`,
     emptyOutDir: true,
     sourcemap: false,
   },

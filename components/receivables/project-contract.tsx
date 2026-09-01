@@ -4,7 +4,7 @@ import { Paperclip, UploadCloud } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ErrorText, FormField } from './design-system';
-import { apiRequest } from '@/lib/api-client';
+import { uploadAttachment } from '@/services/attachments';
 import { canManageProject } from '@/lib/domain';
 import { money, type ProjectModel } from '@/lib/project-lifecycle';
 import type { DemoSession } from '@/lib/types';
@@ -29,11 +29,7 @@ export function ProjectContract({
     setBusy(true);
     setError(null);
     try {
-      const body = new FormData();
-      body.set('file', file);
-      body.set('entityType', 'PROJECT');
-      body.set('entityId', project.id);
-      await apiRequest('/api/attachments', { method: 'POST', body });
+      await uploadAttachment(file, 'PROJECT', project.id);
       setFile(null);
       setInputKey((n) => n + 1);
       await onDone('合同附件已保存，项目附件列表已刷新');

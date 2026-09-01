@@ -103,7 +103,7 @@ export function PageHeading({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+    <div className="app-page-heading">
       <div>
         {eyebrow !== title && (
           <div className="app-section-kicker mb-2">{eyebrow}</div>
@@ -282,7 +282,7 @@ export function EmptyState({
   description: string;
 }) {
   return (
-    <Empty className="min-h-56">
+    <Empty className="min-h-40">
       <EmptyHeader>
         <EmptyMedia variant="icon">
           <FileCheck2 />

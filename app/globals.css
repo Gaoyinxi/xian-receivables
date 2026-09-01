@@ -1,7 +1,9 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
-@import 'shadcn/tailwind.css';
+@import './shadcn-utilities.css';
 @import './lifecycle.css';
+@import './glass.css';
+@import './workspace.css';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -10,7 +12,7 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
-  --font-heading: var(--font-sans);
+  --font-heading: var(--app-font-heading);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -54,18 +56,20 @@
     'SF Pro Text', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC',
     -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
-  --background: #ffffff;
-  --foreground: #171717;
+  --app-font-heading:
+    'Avenir Next', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --background: #f4f6f8;
+  --foreground: #1c2b38;
   --card: #ffffff;
   --card-foreground: #171717;
   --popover: #ffffff;
   --popover-foreground: #171717;
-  --primary: #171717;
+  --primary: #175c7d;
   --primary-foreground: #ffffff;
   --secondary: #f2f2f2;
   --secondary-foreground: #262626;
   --muted: #f7f7f7;
-  --muted-foreground: #636363;
+  --muted-foreground: #566573;
   --accent: #f2f2f2;
   --accent-foreground: #171717;
   --destructive: #c9362b;
@@ -86,21 +90,21 @@
   --sidebar-accent-foreground: #171717;
   --sidebar-border: #e8e8e8;
   --sidebar-ring: #1267d6;
-  --app-canvas-top: #ffffff;
-  --app-canvas-bottom: #ffffff;
+  --app-canvas-top: #f4f6f8;
+  --app-canvas-bottom: #f4f6f8;
   --app-surface: #ffffff;
   --app-surface-raised: rgb(255 255 255 / 96%);
-  --app-surface-subtle: #fafafa;
-  --app-surface-muted: #f2f2f2;
-  --app-text-strong: #171717;
-  --app-text: #292929;
-  --app-text-soft: #636363;
-  --app-border: #e8e8e8;
+  --app-surface-subtle: #f6f8fa;
+  --app-surface-muted: #edf1f4;
+  --app-text-strong: #1c2b38;
+  --app-text: #354553;
+  --app-text-soft: #566573;
+  --app-border: #e0e6eb;
   --app-border-strong: #d4d4d4;
   --app-focus: #377fe4;
-  --app-brand: #1267d6;
-  --app-brand-strong: #0b57b5;
-  --app-brand-soft: #eaf3ff;
+  --app-brand: #175c7d;
+  --app-brand-strong: #124b67;
+  --app-brand-soft: #eaf3f7;
   --app-positive: #14734c;
   --app-positive-soft: #edf8f2;
   --app-warning: #8b5b00;
@@ -110,25 +114,47 @@
   --app-sidebar-top: #0a3158;
   --app-sidebar-bottom: #071c34;
   --app-sidebar-highlight: #7dd3fc;
-  --app-chrome: rgb(255 255 255 / 96%);
+  --app-chrome: rgb(255 255 255 / 82%);
   --app-mobile-chrome: #ffffff;
-  --app-panel-sheen: linear-gradient(
-    180deg,
-    rgb(255 255 255 / 72%),
-    transparent
+  --app-glass-solid: #f7f8fa;
+  --app-glass-text: #171717;
+  --app-glass-muted: #454b54;
+  --app-glass-border: rgb(37 49 65 / 15%);
+  --app-glass-border-strong: #717783;
+  --app-glass-selected: #ffffff;
+  --app-glass-sheen: linear-gradient(
+    145deg,
+    rgb(255 255 255 / 60%),
+    rgb(255 255 255 / 8%) 48%,
+    rgb(255 255 255 / 32%)
   );
+  --app-glass-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 95%), inset 0 -1px 0 rgb(255 255 255 / 45%),
+    0 8px 28px rgb(24 39 57 / 7%), 0 1px 3px rgb(24 39 57 / 5%);
+  --app-glass-blur: 20px;
+  --app-glass-radius: 0.75rem;
+  --app-chrome-gap: 0.75rem;
+  --app-navigation-width: 13rem;
+  --app-mobile-nav-height: 4rem;
+  --app-panel-sheen: none;
   --app-space-1: 0.25rem;
   --app-space-2: 0.5rem;
   --app-space-3: 0.75rem;
   --app-space-4: 1rem;
   --app-space-5: 1.25rem;
   --app-space-6: 1.5rem;
+  --app-space-8: 2rem;
+  --app-space-10: 2.5rem;
+  --app-space-12: 3rem;
+  --app-space-16: 4rem;
   --app-control-height: 2.25rem;
-  --app-motion-fast: 120ms;
-  --app-motion-standard: 160ms;
-  --app-radius-control: 0.625rem;
-  --app-radius-panel: 0.875rem;
-  --app-radius-large: 1.125rem;
+  --app-motion-fast: 150ms;
+  --app-motion-standard: 200ms;
+  --app-motion-panel: 250ms;
+  --app-radius-control: 0.5rem;
+  --app-radius-input: 0.625rem;
+  --app-radius-panel: 0.75rem;
+  --app-radius-large: 1rem;
   --app-shadow-xs: 0 1px 2px rgb(15 34 59 / 5%);
   --app-shadow-sm: 0 1px 3px rgb(0 0 0 / 4%);
   --app-shadow-md:
@@ -191,8 +217,23 @@
   --app-sidebar-top: #0a213b;
   --app-sidebar-bottom: #071524;
   --app-sidebar-highlight: #7dd3fc;
-  --app-chrome: rgb(12 24 39 / 84%);
+  --app-chrome: rgb(16 29 46 / 90%);
   --app-mobile-chrome: rgb(14 27 43 / 90%);
+  --app-glass-solid: #101d2e;
+  --app-glass-text: #f4f8fc;
+  --app-glass-muted: #c4cfdd;
+  --app-glass-border: rgb(221 235 255 / 20%);
+  --app-glass-border-strong: #8799b0;
+  --app-glass-selected: #22374e;
+  --app-glass-sheen: linear-gradient(
+    145deg,
+    rgb(219 234 255 / 9%),
+    rgb(219 234 255 / 1%) 48%,
+    rgb(219 234 255 / 4%)
+  );
+  --app-glass-shadow:
+    inset 0 1px 0 rgb(230 241 255 / 18%), inset 0 -1px 0 rgb(230 241 255 / 5%),
+    0 8px 28px rgb(0 0 0 / 22%), 0 1px 3px rgb(0 0 0 / 15%);
   --app-panel-sheen: linear-gradient(
     180deg,
     rgb(255 255 255 / 3%),
@@ -375,23 +416,6 @@
 
   .app-sidebar {
     overflow: hidden;
-    background: var(--sidebar);
-    border-right: 1px solid var(--sidebar-border);
-    box-shadow: none;
-  }
-
-  .app-sidebar::after {
-    display: none;
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    content: '';
-    background-image: linear-gradient(
-      rgb(255 255 255 / 2%) 1px,
-      transparent 1px
-    );
-    background-size: 100% 3.5rem;
-    mask-image: linear-gradient(to bottom, black, transparent 70%);
   }
 
   .app-sidebar > * {
@@ -417,23 +441,17 @@
   .app-sidebar-link:hover,
   .app-sidebar-link[data-active='true'] {
     color: var(--sidebar-accent-foreground);
-    background: var(--sidebar-accent);
+    background: var(--app-glass-selected);
   }
   .app-sidebar-link[data-active='true'] {
     font-weight: 650;
-  }
-
-  .app-topbar {
-    border-bottom: 1px solid var(--app-border);
-    background: var(--app-chrome);
-    box-shadow: none;
+    box-shadow: inset 0 0 0 1px var(--app-glass-border);
   }
 
   .app-mobile-context,
   .app-mobile-nav {
     border-bottom: 1px solid var(--app-border);
-    background: var(--app-mobile-chrome);
-    backdrop-filter: blur(18px) saturate(150%);
+    background: var(--app-surface);
   }
 
   .app-mobile-nav-scroll {
@@ -478,8 +496,7 @@
   }
 
   .app-panel:hover {
-    border-color: var(--app-border-strong);
-    box-shadow: var(--app-shadow-sm);
+    border-color: var(--app-border);
   }
 
   .app-brand-mark {
@@ -1105,7 +1122,7 @@
 
   [data-slot='dialog-overlay'] {
     background: rgb(9 22 39 / 18%);
-    backdrop-filter: blur(4px) saturate(110%);
+    backdrop-filter: none;
   }
 
   [data-slot='input'],
@@ -1238,7 +1255,6 @@
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .app-topbar,
   .app-mobile-context,
   .app-mobile-nav {
     background: var(--app-surface);
@@ -1256,7 +1272,6 @@
     --app-border-strong: rgb(31 51 75 / 50%);
   }
 
-  .app-topbar,
   .app-mobile-context,
   .app-mobile-nav,
   .app-panel,

@@ -46,3 +46,12 @@ export function requireGatewayToken(): string {
     throw new Error('必须通过自托管启动器运行（缺少内部网关密钥）');
   return token;
 }
+
+export function webBindHost(): '127.0.0.1' | '0.0.0.0' {
+  const host = process.env.WEB_BIND_HOST || '127.0.0.1';
+  if (host === '127.0.0.1') return host;
+  if (host === '0.0.0.0' && process.env.CONTAINER_MODE === '1') return host;
+  throw new Error(
+    '网页网关默认仅监听本机；容器模式才允许 WEB_BIND_HOST=0.0.0.0',
+  );
+}

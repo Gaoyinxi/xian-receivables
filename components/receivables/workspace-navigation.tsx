@@ -46,16 +46,20 @@ export function WorkspaceNavigation({
   });
   if (mobile)
     return (
-      <nav className="lc-mobile-primary lg:hidden" aria-label="主导航">
+      <nav
+        className="lc-mobile-primary app-glass lg:hidden"
+        aria-label="主导航"
+      >
         {items}
       </nav>
     );
   return (
-    <aside className="app-sidebar lc-sidebar fixed inset-y-0 left-0 z-30 hidden w-[232px] flex-col lg:flex">
+    <aside className="app-sidebar lc-sidebar app-glass fixed z-30 hidden flex-col lg:flex">
       <div className="lc-brand">
         <Building2 aria-hidden="true" className="size-7" />
         <div>
           <strong>项目应收</strong>
+          <small className="app-brand-caption">西安 · 政企账务协同</small>
         </div>
       </div>
       <nav aria-label="主导航" className="space-y-2 px-3 py-6">

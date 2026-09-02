@@ -10,10 +10,10 @@ import {
 } from '@/components/receivables/workspace-status';
 import { BusinessCockpit } from '@/components/receivables/business-cockpit';
 import { ProjectDirectory } from '@/components/receivables/project-directory';
-import { ProjectWorkspace } from '@/components/receivables/project-workspace';
 import { WorkspaceNavigation } from '@/components/receivables/workspace-navigation';
 import { AccountScopeView } from '@/components/receivables/global-insights';
-import { buildPortfolio, shanghaiDate } from '@/lib/project-lifecycle';
+import { buildPortfolio, nextForNode, shanghaiDate } from '@/lib/project-lifecycle';
+import type { ProjectModel } from '@/lib/project-lifecycle';
 import {
   VIEW_TITLES,
   type View,
@@ -195,9 +195,6 @@ export function ReceivablesApp({
     () => (data ? buildPortfolio(data) : []),
     [data],
   );
-  const currentProject = route.projectId
-    ? models.find((model) => model.project.id === route.projectId)
-    : undefined;
   const today = data?.businessDate ?? shanghaiDate();
 
   async function confirmReceivable(id: string) {
@@ -216,6 +213,21 @@ export function ReceivablesApp({
     } finally {
       if (identityRevision.current === epoch) setConfirmingId(null);
     }
+  }
+
+  function runProjectAction(model: ProjectModel, nodeId?: string) {
+    if (!data) return;
+    const target = nodeId
+      ? model.nodes.find((node) => node.id === nodeId)
+      : undefined;
+    const action = target ? nextForNode(target, data.session) : model.next;
+    if (action.kind === 'node') openOperation('node', model.project.id);
+    else if (action.kind === 'receipt' && action.receivableId)
+      openOperation('receipt', model.project.id, action.receivableId);
+    else if (action.kind === 'collection' && action.receivableId)
+      openOperation('collection', model.project.id, action.receivableId);
+    else if (action.kind === 'confirm' && action.receivableId)
+      void confirmReceivable(action.receivableId);
   }
 
   if (!loading && !data) {
@@ -262,46 +274,18 @@ export function ReceivablesApp({
       </Button>
     </section>
   ) : route.projectId ? (
-    currentProject ? (
-      <ProjectWorkspace
-        key={currentProject.project.id}
-        model={currentProject}
-        data={data}
-        section={route.section ?? 'overview'}
-        focusedNodeId={route.receivableId}
-        today={today}
-        confirmingId={confirmingId}
-        onBack={() => navigate('projects')}
-        onSection={(section, nodeId) =>
-          openProject(currentProject.project.id, section, nodeId)
-        }
-        onDone={done}
-        operations={{
-          onNode: () => openOperation('node', currentProject.project.id),
-          onConfirm: (id) => void confirmReceivable(id),
-          onReceipt: (id) =>
-            openOperation('receipt', currentProject.project.id, id),
-          onCollection: (id, action) =>
-            openOperation('collection', currentProject.project.id, id, action),
-          onCorrectReceipt: (record) => setReceiptCorrection(record),
-          onCorrectCollection: (record) => setCollectionCorrection(record),
-        }}
-      />
-    ) : (
-      <section className="lc-section">
-        <EmptyState
-          title="项目不可用"
-          description="项目不存在或不在当前账号的数据范围中；没有自动打开其他项目。"
-        />
-        <Button
-          variant="outline"
-          className="m-4"
-          onClick={() => navigate('projects')}
-        >
-          返回项目列表
-        </Button>
-      </section>
-    )
+    <ProjectDirectory
+      key={`linked-${route.projectId}`}
+      data={data}
+      models={models}
+      initialSelectedId={route.projectId}
+      onOpen={openProject}
+      onNew={openNewProject}
+      onDone={done}
+      onImport={() => pushRoute({ view: 'projects', importing: true })}
+      onArchiveChange={(archived) => navigate(archived ? 'history' : 'projects')}
+      onAction={runProjectAction}
+    />
   ) : route.importing ? (
     <ImportView data={data} onDone={done} onBack={() => navigate('projects')} />
   ) : (
@@ -323,34 +307,12 @@ export function ReceivablesApp({
           models={models}
           onOpen={openProject}
           onNew={openNewProject}
+          onDone={done}
           onImport={() => pushRoute({ view: 'projects', importing: true })}
           onArchiveChange={(archived) =>
             navigate(archived ? 'history' : 'projects')
           }
-          onAction={(model) => {
-            if (model.next.kind === 'node')
-              openOperation('node', model.project.id);
-            else if (model.next.kind === 'receipt')
-              openOperation(
-                'receipt',
-                model.project.id,
-                model.next.receivableId,
-              );
-            else if (model.next.kind === 'collection')
-              openOperation(
-                'collection',
-                model.project.id,
-                model.next.receivableId,
-              );
-            else if (model.next.kind === 'confirm' && model.next.receivableId)
-              void confirmReceivable(model.next.receivableId);
-            else
-              openProject(
-                model.project.id,
-                model.next.section,
-                model.next.receivableId,
-              );
-          }}
+          onAction={runProjectAction}
         />
       ),
       history: (
@@ -361,7 +323,7 @@ export function ReceivablesApp({
           archived
           onOpen={openProject}
           onNew={openNewProject}
-          onImport={() => pushRoute({ view: 'projects', importing: true })}
+          onDone={done}
           onArchiveChange={(archived) =>
             navigate(archived ? 'history' : 'projects')
           }
@@ -392,8 +354,6 @@ export function ReceivablesApp({
         onNavigate={navigate}
         data={data}
         onNew={openNewProject}
-        onImport={() => pushRoute({ view: 'projects', importing: true })}
-        onOpen={openProject}
       />
 
       <div className="app-workspace-body">
@@ -406,7 +366,9 @@ export function ReceivablesApp({
             void changeIdentity(role, districtCode)
           }
         >
-          <ProjectSwitcher projects={data.projects} onOpen={openProject} />
+          {route.projectId ? (
+            <ProjectSwitcher projects={data.projects} onOpen={openProject} />
+          ) : null}
         </ApplicationHeader>
         <div className="app-mobile-context flex items-center gap-2 overflow-x-auto px-4 py-2 md:hidden">
           <IdentityControls
@@ -430,6 +392,7 @@ export function ReceivablesApp({
             error={loadError}
             updatedAt={updatedAt}
             onRetry={() => void load(true)}
+            hideWhenFresh={view === 'projects'}
           />
           {notice ? (
             <Alert

@@ -15,16 +15,12 @@ export function WorkspaceNavigation({
   mobile = false,
   data,
   onNew,
-  onImport,
-  onOpen,
 }: {
   view: View;
   onNavigate: (view: View) => void;
   mobile?: boolean;
   data?: BootstrapData;
   onNew?: () => void;
-  onImport?: () => void;
-  onOpen?: (projectId: string, section?: 'overview' | 'audit') => void;
 }) {
   const group =
     NAV_GROUPS.find((g) => (g.views as readonly string[]).includes(view)) ??
@@ -99,23 +95,6 @@ export function WorkspaceNavigation({
               onClick={() => onNavigate('projects')}
             >
               <span>所有项目</span>
-            </button>
-            <button
-              type="button"
-              className="app-sidebar-link"
-              onClick={onImport}
-            >
-              <span>导入</span>
-            </button>
-            <button
-              type="button"
-              className="app-sidebar-link"
-              disabled={!data?.projects.length}
-              onClick={() =>
-                data?.projects[0] && onOpen?.(data.projects[0].id, 'audit')
-              }
-            >
-              <span>审计</span>
             </button>
             <button
               type="button"

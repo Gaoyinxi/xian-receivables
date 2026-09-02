@@ -101,26 +101,36 @@ export function ApplicationHeader({
     (item.views as readonly string[]).includes(route.view),
   );
   const project = data.projects.find((item) => item.id === route.projectId);
+  // The project workspace is intentionally distraction-free: its own page
+  // content already identifies the project and scope, so the global context
+  // breadcrumb is hidden there.
+  const showContext = route.view !== 'projects';
+  const buildId = import.meta.env.VITE_BUILD_ID || 'DEV';
   return (
     <header className="app-topbar sticky z-20 flex min-h-14 items-center px-4 md:px-7">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <div className="grid size-9 shrink-0 place-items-center rounded-[11px] bg-primary text-white shadow-sm lg:hidden">
           <CircleDollarSign className="size-5" />
         </div>
-        <div className="min-w-0">
-          <nav className="app-location" aria-label="当前位置">
-            <span>{group?.label}</span>
-            <span aria-hidden="true">/</span>
-            <strong aria-current="page">
-              {project?.name ?? VIEW_TITLES[route.view]}
-            </strong>
-          </nav>
-          <p className="hidden text-xs text-muted-foreground sm:block">
-            {data.session.districtName
-              ? `${data.session.districtName}数据范围`
-              : '全市数据范围'}{' '}
-          </p>
-        </div>
+        <span className="app-build-id" title={`前端构建编号 ${buildId}`}>
+          {buildId}
+        </span>
+        {showContext ? (
+          <div className="min-w-0">
+            <nav className="app-location" aria-label="当前位置">
+              <span>{group?.label}</span>
+              <span aria-hidden="true">/</span>
+              <strong aria-current="page">
+                {project?.name ?? VIEW_TITLES[route.view]}
+              </strong>
+            </nav>
+            <p className="hidden text-xs text-muted-foreground sm:block">
+              {data.session.districtName
+                ? `${data.session.districtName}数据范围`
+                : '全市数据范围'}{' '}
+            </p>
+          </div>
+        ) : null}
       </div>
       <div className="flex items-center gap-2">
         {children}

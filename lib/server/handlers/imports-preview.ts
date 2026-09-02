@@ -1,14 +1,24 @@
 // Shared business handler: used by both Sites and the independent Node API.
 import { getRawDb } from '@/db/index';
-import { ok, routeError } from '@/lib/server/api';
+import { BusinessError, ok, routeError } from '@/lib/server/api';
 import { validateImportRows } from '@/lib/server/imports';
+import { parseImportFile } from '@/lib/server/import-file';
 import { requireSession } from '@/lib/server/session';
 import { importPayloadSchema } from '@/lib/validation';
 
 export async function POST(request: Request) {
   try {
     const session = await requireSession(request);
-    const input = importPayloadSchema.parse(await request.json());
+    const contentType = request.headers.get('content-type') ?? '';
+    const input = contentType.includes('multipart/form-data')
+      ? await (async () => {
+          const form = await request.formData();
+          const file = form.get('file');
+          if (!(file instanceof File))
+            throw new BusinessError('IMPORT_FILE_REQUIRED', '请选择要导入的 Excel 文件');
+          return parseImportFile(file);
+        })()
+      : importPayloadSchema.parse(await request.json());
     const validation = await validateImportRows(
       input.kind,
       input.rows,

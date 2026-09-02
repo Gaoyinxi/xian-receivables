@@ -51,9 +51,26 @@ export interface ImportPreview {
 }
 export const importService = {
   preview: (input: FormInput) => post<ImportPreview>('imports/preview', input),
+  previewFile: (file: File) => {
+    const body = new FormData();
+    body.set('file', file);
+    return apiRequest<ImportPreview>('/api/v1/imports/preview', {
+      method: 'POST',
+      body,
+    });
+  },
   commit: (input: FormInput) =>
     post<{ committedRows: number; rowErrors: RowError[] }>(
       'imports/commit',
       input,
     ),
+  commitFile: (input: { batchId: string; file: File }) => {
+    const body = new FormData();
+    body.set('batchId', input.batchId);
+    body.set('file', input.file);
+    return apiRequest<{ committedRows: number; rowErrors: RowError[] }>(
+      '/api/v1/imports/commit',
+      { method: 'POST', body },
+    );
+  },
 };

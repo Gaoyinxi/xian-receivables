@@ -26,6 +26,7 @@ export function ProjectNodes({
   onConfirm,
   onReceipt,
   onCollection,
+  compact = false,
 }: {
   model: ProjectModel;
   session: DemoSession;
@@ -36,32 +37,48 @@ export function ProjectNodes({
   onConfirm: (id: string) => void;
   onReceipt: (id: string) => void;
   onCollection: (id: string) => void;
+  compact?: boolean;
 }) {
   const nodes = nodeId
     ? model.nodes.filter((node) => node.id === nodeId)
     : model.nodes;
   return (
     <section className="lc-section">
-      <div className="lc-section-heading">
-        <div>
-          <h2>{nodeId ? '节点处理' : '项目处理链'}</h2>
-          <p>
-            {nodeId
-              ? '确认应收后，可登记催收或实际回款；每次操作都会写入此节点动态。'
-              : '按付款节点依次处理：确认应收，然后登记催收或实际回款。每次操作都会更新下方动态。'}
-          </p>
+      {!compact && (
+        <div className="lc-section-heading">
+          <div>
+            <h2>{nodeId ? '节点处理' : '项目处理链'}</h2>
+            <p>
+              {nodeId
+                ? '确认应收后，可登记催收或实际回款；每次操作都会写入此节点动态。'
+                : '按付款节点依次处理：确认应收，然后登记催收或实际回款。每次操作都会更新下方动态。'}
+            </p>
+          </div>
+          {canManageReceivable(
+            session.role,
+            session.districtId,
+            model.project.districtId,
+          ) && (
+            <Button variant="outline" onClick={onNode}>
+              <Plus />
+              新增付款节点
+            </Button>
+          )}
         </div>
-        {canManageReceivable(
+      )}
+      {compact &&
+        canManageReceivable(
           session.role,
           session.districtId,
           model.project.districtId,
         ) && (
-          <Button variant="outline" onClick={onNode}>
-            <Plus />
-            新增付款节点
-          </Button>
+          <div className="flex justify-end px-4 pt-3">
+            <Button variant="outline" size="sm" onClick={onNode}>
+              <Plus />
+              新增付款节点
+            </Button>
+          </div>
         )}
-      </div>
       {!nodes.length && (
         <p className="lc-empty">
           尚无付款节点。根据合同建立第一笔应收，系统会计算约定付款日。
@@ -97,7 +114,9 @@ export function ProjectNodes({
               )}
             </div>
           </div>
-          <details open={node.id === focusedNodeId || undefined}>
+          <details
+            open={compact ? undefined : node.id === focusedNodeId || undefined}
+          >
             <summary>付款条件、基准日期与确认依据</summary>
             <dl className="lc-node-facts">
               <div>
@@ -277,63 +296,6 @@ export function ProjectCollections({
       {!collections.length && (
         <p className="lc-empty">
           尚未记录催收。跟进不是回款前置条件，实际到账后可直接登记回款。
-        </p>
-      )}
-    </section>
-  );
-}
-
-export function ProjectAudit({ model }: { model: ProjectModel }) {
-  return (
-    <section className="lc-section">
-      <div className="lc-section-heading">
-        <div>
-          <h2>项目相关审计</h2>
-          <p>
-            从最近 300 条可见审计中关联到本项目的 {model.audits.length}{' '}
-            条；不是完整项目历史，原始日志继续保存在数据库。
-          </p>
-        </div>
-      </div>
-      <div className="lc-audit-list">
-        {model.audits.map((row) => (
-          <details key={row.id}>
-            <summary>
-              <time>{dateTime(row.createdAt)}</time>
-              <span>{row.actorName}</span>
-              <span>
-                {row.action === 'VOID_AND_CORRECT'
-                  ? '作废并更正'
-                  : row.action === 'CONFIRM'
-                    ? '确认应收'
-                    : row.action === 'UPLOAD'
-                      ? '上传附件'
-                      : row.action === 'CREATE'
-                        ? '新增记录'
-                        : row.action}
-              </span>
-              <span className="lc-table-note">{row.entityType}</span>
-            </summary>
-            <dl>
-              <dt>记录 / 字段</dt>
-              <dd>
-                {row.entityId} · {row.fieldName || '整条记录'}
-              </dd>
-              <dt>原值</dt>
-              <dd>{row.oldValue ?? '无'}</dd>
-              <dt>新值</dt>
-              <dd>{row.newValue ?? '无'}</dd>
-              <dt>原因 / 来源</dt>
-              <dd>
-                {row.reason || '无'} · {row.source}
-              </dd>
-            </dl>
-          </details>
-        ))}
-      </div>
-      {!model.audits.length && (
-        <p className="lc-empty">
-          最近返回的审计中没有本项目记录；这不表示历史操作不存在。
         </p>
       )}
     </section>

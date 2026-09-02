@@ -7,6 +7,11 @@ const root = fileURLToPath(new URL('../../', import.meta.url));
 export default defineConfig({
   root: `${root}apps/web`,
   publicDir: `${root}public`,
+  define: {
+    'import.meta.env.VITE_BUILD_ID': JSON.stringify(
+      process.env.RECEIVABLES_BUILD_ID || 'DEV',
+    ),
+  },
   plugins: [react()],
   resolve: { alias: { '@': root } },
   css: { postcss: { plugins: [tailwindcss()] } },

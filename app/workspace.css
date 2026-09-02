@@ -17,6 +17,14 @@
   color: var(--app-text-soft);
   font-size: 0.6875rem;
 }
+.app-build-id {
+  flex-shrink: 0;
+  color: var(--app-text-soft);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.04em;
+  opacity: 0.72;
+}
 .app-location {
   display: flex;
   align-items: center;

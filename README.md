@@ -47,6 +47,16 @@ npm run selfhost:public
 
 公网启动器输出临时 HTTPS 地址，并保持前端、API 和隧道运行；用 `npm run selfhost:stop` 停止。首次安装隧道工具可执行 `npm run selfhost:tunnel-install`（使用已登录的 GitHub CLI 下载并校验官方程序）。
 
+每次需要更换临时公网地址并加载最新前端时，按以下顺序执行：
+
+```bash
+npm run selfhost:stop
+npm run selfhost:build
+npm run selfhost:public
+```
+
+`selfhost:public` 每次都会创建新的 Cloudflare Quick Tunnel 地址；`selfhost:build` 会为前端生成唯一构建编号，并显示在工作台左上角，便于跨设备确认当前版本。
+
 正式库默认在 `.data/selfhost/receivables.sqlite`，不生成示例项目、应收、回款或催缴；保留区县和风险规则配置。原 `.wrangler/` 演示库和私有站点没有删除或迁移。电脑关闭、休眠或断网时外网无法访问；临时隧道不承诺在线时间，重启后地址可能变化。
 
 架构、账号开通、备份恢复和部署边界见 [自托管交付手册](docs/SELF_HOSTING.md)。
@@ -62,7 +72,7 @@ npm run selfhost:public
 - 应收管理：待确认应收、市级确认、核销状态、逾期风险和法律风险。
 - 回款流水：多笔回款、凭证、超额阻止、作废并追加更正。
 - 催缴中心：微信、面谈、正式函件、领导介入、附件与不可覆盖时间线。
-- 导入中心：三份 Excel 模板、预览、逐行校验、有效行提交和错误 CSV。
+- 导入中心：三份 Excel 模板、真实文件上传、服务端自动识别/校验、无误自动导入和错误 CSV。
 - 审计日志：实体、字段、原值、新值、原因、来源、操作人和操作时间。
 - 风险设置：市级管理员调整阈值，规则变更写入审计。
 - 服务端角色权限与区县数据隔离。

@@ -64,7 +64,9 @@ const server = createFetchServer(
         }
         const type = request.headers.get('content-type')?.split(';')[0].trim();
         const multipart =
-          path === '/api/attachments' || path === '/api/imports/preview';
+          path === '/api/attachments' ||
+          path === '/api/imports/preview' ||
+          path === '/api/imports/commit';
         if (
           type !== 'application/json' &&
           !(multipart && type === 'multipart/form-data')

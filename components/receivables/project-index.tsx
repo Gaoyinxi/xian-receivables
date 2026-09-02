@@ -1,8 +1,15 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { ArrowRight, ChevronDown, ChevronRight, Paperclip } from 'lucide-react';
+import { useMemo, useState, type SubmitEvent } from 'react';
+import {
+  ArrowRight,
+  ChevronDown,
+  ChevronRight,
+  FileText,
+  Paperclip,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   Sheet,
   SheetContent,
@@ -10,9 +17,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import { money, type ProjectModel } from '@/lib/project-lifecycle';
+import { money, nextForNode, type ProjectModel } from '@/lib/project-lifecycle';
 import { type OpenProject } from './project-primitives';
 import type { ProjectSection } from '@/lib/project-navigation';
+import type { DemoSession } from '@/lib/types';
+import { canManageProject } from '@/lib/domain';
+import { uploadAttachment } from '@/services/attachments';
+import { ErrorText, FormField } from './design-system';
 
 type TaskState = 'done' | 'current' | 'future';
 type TaskEvent = {
@@ -23,7 +34,7 @@ type TaskEvent = {
   description: string;
   section: ProjectSection;
 };
-type ProjectAction = (model: ProjectModel) => void;
+type ProjectAction = (model: ProjectModel, nodeId?: string) => void;
 
 const STATE_GROUPS = [
   {
@@ -144,14 +155,12 @@ function TaskTree({
   node,
   expandedTaskId,
   onExpand,
-  onOpen,
   onAction,
 }: {
   model: ProjectModel;
   node: ProjectModel['nodes'][number];
   expandedTaskId: string | null;
   onExpand: (taskId: string) => void;
-  onOpen: OpenProject;
   onAction?: ProjectAction;
 }) {
   return (
@@ -164,8 +173,9 @@ function TaskTree({
             <button
               type="button"
               className="lc-task-tree-row"
-              onClick={() => onExpand(taskId)}
+              aria-label={`${event.label}，${event.date}`}
               aria-expanded={expanded}
+              onClick={() => onExpand(taskId)}
             >
               <span className="lc-task-dot" aria-hidden="true">
                 {event.state === 'done'
@@ -181,49 +191,48 @@ function TaskTree({
               <ChevronRight aria-hidden="true" className="size-3.5" />
             </button>
             {expanded && (
-              <section
-                className="lc-task-detail"
-                aria-label={`${event.label}详情`}
-              >
+              <section className="lc-task-detail" aria-label={`${event.label}详情`}>
                 <p>{event.description}</p>
                 <dl>
+                  <div><dt>应收编号</dt><dd>{node.receivableCode}</dd></div>
+                  <div><dt>待收金额</dt><dd>{money(node.remainingAmountCents)}</dd></div>
+                  <div><dt>付款条件</dt><dd>{node.paymentCondition}</dd></div>
+                  <div><dt>约定付款日</dt><dd>{node.dueDate}</dd></div>
                   <div>
-                    <dt>应收编号</dt>
-                    <dd>{node.receivableCode}</dd>
-                  </div>
-                  <div>
-                    <dt>待收金额</dt>
-                    <dd>{money(node.remainingAmountCents)}</dd>
+                    <dt>确认 / 风险</dt>
+                    <dd>
+                      {node.confirmationStatus === 'CONFIRMED' ? '已确认' : '待市级确认'} ·{' '}
+                      {node.overdueDays > 0 ? `逾期 ${node.overdueDays} 天` : '当前无逾期'}
+                    </dd>
                   </div>
                 </dl>
-                <div className="lc-task-detail-actions">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      onOpen(model.project.id, event.section, node.id)
-                    }
-                  >
-                    完整详情
-                  </Button>
-                  {event.state === 'current' && (
-                    <Button
-                      size="sm"
-                      onClick={() =>
-                        onAction
-                          ? onAction(model)
-                          : onOpen(
-                              model.project.id,
-                              model.next.section,
-                              model.next.receivableId,
-                            )
-                      }
-                    >
-                      {model.next.label}
-                      <ArrowRight aria-hidden="true" />
+                {event.id === 'receipt' && (
+                  <div className="lc-task-detail-stream">
+                    <strong>回款流水</strong>
+                    {model.receipts.filter((item) => item.receivableId === node.id).length ? (
+                      <ul>{model.receipts.filter((item) => item.receivableId === node.id).map((item) => (
+                        <li key={item.id}><span>{item.receivedDate}</span><b>{money(item.amountCents)}</b><small>{item.status === 'VALID' ? '有效' : '已作废'}</small></li>
+                      ))}</ul>
+                    ) : <span>尚无有效回款记录</span>}
+                  </div>
+                )}
+                {event.id === 'collection' && (
+                  <div className="lc-task-detail-stream">
+                    <strong>催缴跟进</strong>
+                    {model.collections.filter((item) => item.receivableId === node.id).length ? (
+                      <ul>{model.collections.filter((item) => item.receivableId === node.id).map((item) => (
+                        <li key={item.id}><span>{item.actionDate}</span><b>{item.actionType}</b><small>{item.status === 'VALID' ? '有效' : '已作废'}</small></li>
+                      ))}</ul>
+                    ) : <span>尚无催缴跟进记录</span>}
+                  </div>
+                )}
+                {event.state === 'current' && onAction && (
+                  <div className="lc-task-detail-actions">
+                    <Button size="sm" onClick={() => onAction(model, node.id)}>
+                      {model.next.label}<ArrowRight aria-hidden="true" />
                     </Button>
-                  )}
-                </div>
+                  </div>
+                )}
               </section>
             )}
           </li>
@@ -237,20 +246,37 @@ function ProjectResources({
   model,
   open,
   onOpenChange,
-  onOpen,
+  session,
+  onDone,
 }: {
   model: ProjectModel;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onOpen: OpenProject;
+  session?: DemoSession;
+  onDone?: (message: string) => Promise<void>;
 }) {
-  const [tab, setTab] = useState<'risk' | 'attachments' | 'audit' | 'settings'>(
-    'risk',
-  );
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const riskReason =
     model.overdue > 0
       ? `当前有 ${money(model.overdue)} 已逾期，系统按服务端风险规则计算为 ${model.risk} 级。`
       : '当前无逾期未收金额。';
+  async function upload(event: SubmitEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!file || uploading || !session || !canManageProject(session.role)) return;
+    setUploading(true);
+    setUploadError(null);
+    try {
+      await uploadAttachment(file, 'PROJECT', model.project.id);
+      setFile(null);
+      await onDone?.('合同附件已保存，项目资料已刷新');
+    } catch (failure) {
+      setUploadError(failure instanceof Error ? failure.message : '上传失败，请重试');
+    } finally {
+      setUploading(false);
+    }
+  }
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="lc-project-resources-drawer">
@@ -260,34 +286,73 @@ function ProjectResources({
             {model.project.name} · {model.project.projectCode}
           </SheetDescription>
         </SheetHeader>
-        <div
-          className="lc-resource-tabs"
-          role="tablist"
-          aria-label="项目资料分类"
-        >
-          {(
-            [
-              ['risk', '风险'],
-              ['attachments', '附件'],
-              ['audit', '审计'],
-              ['settings', '设置'],
-            ] as const
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              role="tab"
-              aria-selected={tab === value}
-              data-active={tab === value}
-              onClick={() => setTab(value)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
         <div className="lc-resource-body">
-          {tab === 'risk' && (
-            <section>
+          <section>
+              <span className="lc-resource-kicker">
+                <FileText aria-hidden="true" />
+                合同与项目信息
+              </span>
+              <h3>{model.project.name}</h3>
+              <dl>
+                <div>
+                  <dt>项目编码</dt>
+                  <dd>{model.project.projectCode}</dd>
+                </div>
+                <div>
+                  <dt>合同编码</dt>
+                  <dd>{model.project.contractCode}</dd>
+                </div>
+                <div>
+                  <dt>签订日期</dt>
+                  <dd>{model.project.contractDate}</dd>
+                </div>
+                <div>
+                  <dt>合同金额</dt>
+                  <dd>{money(model.project.contractAmountCents)}</dd>
+                </div>
+                <div>
+                  <dt>客户</dt>
+                  <dd>{model.project.customerName}</dd>
+                </div>
+                <div>
+                  <dt>负责人</dt>
+                  <dd>{model.project.accountManager}</dd>
+                </div>
+                <div>
+                  <dt>归属区域</dt>
+                  <dd>{model.project.districtName}</dd>
+                </div>
+                <div>
+                  <dt>业务状态</dt>
+                  <dd>{model.project.status}</dd>
+                </div>
+              </dl>
+              <div className="lc-resource-subsection">
+                <span className="lc-resource-kicker">回款概况</span>
+                <dl>
+                  <div>
+                    <dt>已形成应收</dt>
+                    <dd>{money(model.confirmed)}</dd>
+                  </div>
+                  <div>
+                    <dt>已回款</dt>
+                    <dd>{money(model.received)}</dd>
+                  </div>
+                  <div>
+                    <dt>剩余应收</dt>
+                    <dd>{money(model.remaining)}</dd>
+                  </div>
+                  <div>
+                    <dt>付款节点</dt>
+                    <dd>{model.nodes.length} 个</dd>
+                  </div>
+                </dl>
+              </div>
+              <p className="lc-resource-hint">
+                合同、节点、回款和催收记录均已关联到当前项目，可在对应节点卡片中继续处理。
+              </p>
+          </section>
+          <section>
               <span className="lc-resource-kicker">当前风险</span>
               <h3>
                 {model.risk === 'RED'
@@ -313,16 +378,55 @@ function ProjectResources({
                   <dd>{model.lastActivity.slice(0, 10)}</dd>
                 </div>
               </dl>
-              <Button
-                variant="outline"
-                onClick={() => onOpen(model.project.id, 'risk')}
-              >
-                完整风险解释
-              </Button>
-            </section>
-          )}
-          {tab === 'attachments' && (
-            <section>
+          </section>
+          <section>
+              <span className="lc-resource-kicker">付款节点</span>
+              <h3>{model.nodes.length} 个节点</h3>
+              <div className="lc-resource-node-list">
+                {model.nodes.map((node) => (
+                  <article key={node.id}>
+                    <div className="lc-resource-node-head">
+                      <div>
+                        <span>第 {node.sequenceNo} 节 · {node.dueDate}</span>
+                        <strong>{node.paymentType}</strong>
+                      </div>
+                      <b>{money(node.amountCents)}</b>
+                    </div>
+                    <dl>
+                      <div>
+                        <dt>应收编号</dt>
+                        <dd>{node.receivableCode}</dd>
+                      </div>
+                      <div>
+                        <dt>付款条件</dt>
+                        <dd>{node.paymentCondition}</dd>
+                      </div>
+                      <div>
+                        <dt>核销状态</dt>
+                        <dd>{node.writeoffStatus === 'PAID' ? '已结清' : node.writeoffStatus === 'PARTIAL' ? '部分回款' : '未回款'}</dd>
+                      </div>
+                      <div>
+                        <dt>剩余应收</dt>
+                        <dd>{money(node.remainingAmountCents)}</dd>
+                      </div>
+                      <div>
+                        <dt>确认状态</dt>
+                        <dd>{node.confirmationStatus === 'CONFIRMED' ? '已确认' : '待确认'}</dd>
+                      </div>
+                      <div>
+                        <dt>风险</dt>
+                        <dd>{node.overdueDays > 0 ? `逾期 ${node.overdueDays} 天` : '当前无逾期'}</dd>
+                      </div>
+                    </dl>
+                    <div className="lc-resource-node-meta">
+                      <span>回款 {model.receipts.filter((item) => item.receivableId === node.id && item.status === 'VALID').length} 笔</span>
+                      <span>催缴 {model.collections.filter((item) => item.receivableId === node.id && item.status === 'VALID').length} 次</span>
+                    </div>
+                  </article>
+                ))}
+              </div>
+          </section>
+          <section>
               <span className="lc-resource-kicker">
                 <Paperclip aria-hidden="true" />
                 附件
@@ -343,48 +447,25 @@ function ProjectResources({
               ) : (
                 <p>尚未上传项目附件。</p>
               )}
-              <Button
-                variant="outline"
-                onClick={() => onOpen(model.project.id, 'contract')}
-              >
-                管理合同与附件
-              </Button>
-            </section>
-          )}
-          {tab === 'audit' && (
-            <section>
-              <span className="lc-resource-kicker">最近审计</span>
-              <h3>{model.audits.length} 条记录</h3>
-              {model.audits.slice(0, 8).map((item) => (
-                <article key={item.id}>
-                  <strong>{item.action}</strong>
-                  <p>
-                    {item.actorName} ·{' '}
-                    {item.createdAt.slice(0, 16).replace('T', ' ')}
-                  </p>
-                </article>
-              ))}
-              <Button
-                variant="outline"
-                onClick={() => onOpen(model.project.id, 'audit')}
-              >
-                查看全部审计
-              </Button>
-            </section>
-          )}
-          {tab === 'settings' && (
-            <section>
-              <span className="lc-resource-kicker">项目设置</span>
-              <h3>{model.project.status}</h3>
-              <p>项目编码、合同编码与区县数据范围由现有业务规则维护。</p>
-              <Button
-                variant="outline"
-                onClick={() => onOpen(model.project.id, 'contract')}
-              >
-                查看项目信息
-              </Button>
-            </section>
-          )}
+              {session && canManageProject(session.role) && onDone ? (
+                <form onSubmit={upload} className="lc-resource-upload">
+                  <FormField label="上传合同附件" hint="PDF / JPG / PNG，单文件不超过 10MB。">
+                    <Input
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                      disabled={uploading}
+                      onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                    />
+                  </FormField>
+                  <ErrorText error={uploadError} />
+                  <Button type="submit" variant="outline" disabled={uploading || !file} aria-busy={uploading}>
+                    {uploading ? '正在上传…' : '上传合同附件'}
+                  </Button>
+                </form>
+              ) : (
+                <p className="lc-resource-hint">合同附件由有权限的管理员上传，回款和催缴附件在对应节点中管理。</p>
+              )}
+          </section>
         </div>
       </SheetContent>
     </Sheet>
@@ -394,13 +475,15 @@ function ProjectResources({
 function ProjectPath({
   model,
   onOpen,
-  onClose,
   onAction,
+  session,
+  onDone,
 }: {
   model: ProjectModel;
   onOpen: OpenProject;
-  onClose: () => void;
   onAction?: ProjectAction;
+  session?: DemoSession;
+  onDone?: (message: string) => Promise<void>;
 }) {
   const [showAll, setShowAll] = useState(false);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
@@ -410,47 +493,11 @@ function ProjectPath({
     model.nodes.find((node) => node.remainingAmountCents > 0) ??
     model.nodes.at(-1);
   const visibleNodes = showAll ? model.nodes : currentNode ? [currentNode] : [];
-  const progress = model.confirmed
-    ? Math.round((model.received / model.confirmed) * 100)
-    : 0;
-
   return (
     <aside
       className="lc-project-preview lc-project-path"
       aria-label={`${model.project.name}当前业务路径`}
     >
-      <section className="lc-path-project-summary">
-        <button type="button" className="lc-path-back" onClick={onClose}>
-          所有项目 / {model.project.districtName}
-        </button>
-        <div>
-          <span>{model.project.projectCode}</span>
-          <h3>{model.project.name}</h3>
-          <p>
-            {model.project.districtName} · {model.project.customerName}
-          </p>
-        </div>
-        <dl>
-          <div>
-            <dt>合同</dt>
-            <dd>{money(model.project.contractAmountCents)}</dd>
-          </div>
-          <div>
-            <dt>已收</dt>
-            <dd>{money(model.received)}</dd>
-          </div>
-          <div data-emphasis="true">
-            <dt>待收</dt>
-            <dd>{money(model.remaining)}</dd>
-          </div>
-        </dl>
-        <progress
-          aria-label="已确认应收回款进度"
-          max={Math.max(model.confirmed, 1)}
-          value={model.received}
-          title={`已确认应收回款 ${progress}%`}
-        />
-      </section>
       <section className="lc-current-focus" aria-label="当前任务">
         <span className="lc-task-dot" aria-hidden="true">
           ✶
@@ -462,15 +509,16 @@ function ProjectPath({
         </div>
         <Button
           size="sm"
-          onClick={() =>
-            onAction
-              ? onAction(model)
-              : onOpen(
-                  model.project.id,
-                  model.next.section,
-                  model.next.receivableId,
-                )
-          }
+          onClick={() => {
+            if (model.next.kind === 'view') setResourcesOpen(true);
+            else if (onAction) onAction(model, model.next.receivableId);
+            else
+              onOpen(
+                model.project.id,
+                model.next.section,
+                model.next.receivableId,
+              );
+          }}
         >
           {model.next.label}
           <ArrowRight aria-hidden="true" />
@@ -480,14 +528,17 @@ function ProjectPath({
         <div>
           <span>CURRENT PATH</span>
           <h2>当前业务路径</h2>
+          <small className="lc-current-project-name">
+            {model.project.name} · {model.project.projectCode}
+          </small>
         </div>
         {model.nodes.length > 1 && (
           <button
             type="button"
             className="lc-focus-toggle"
             onClick={() => {
-              setShowAll(!showAll);
-              setExpandedTaskId(null);
+          setShowAll(!showAll);
+          setExpandedTaskId(null);
             }}
           >
             {showAll ? '只看当前路径' : '显示全部节点'}
@@ -512,27 +563,40 @@ function ProjectPath({
         <ol className="lc-business-path" aria-label="当前付款节点路径">
           {visibleNodes.map((node) => (
             <li key={node.id} data-current={node.id === currentNode?.id}>
-              <button
-                type="button"
-                className="lc-payment-node"
-                onClick={() =>
-                  setExpandedTaskId(
-                    expandedTaskId === `${node.id}:receipt`
-                      ? null
-                      : `${node.id}:receipt`,
-                  )
-                }
-              >
-                <span className="lc-payment-node-marker" aria-hidden="true" />
-                <span>
-                  <small>
-                    第 {node.sequenceNo} 节 · {node.dueDate}
-                  </small>
-                  <strong>{node.paymentType}</strong>
-                </span>
-                <em>{money(node.remainingAmountCents)}</em>
-                <ChevronRight aria-hidden="true" className="size-4" />
-              </button>
+              <div className="lc-payment-node-line">
+                <button
+                  type="button"
+                  className="lc-payment-node"
+                  onClick={() => setResourcesOpen(true)}
+                  aria-label={`查看第 ${node.sequenceNo} 节节点详情`}
+                >
+                  <span className="lc-payment-node-marker" aria-hidden="true" />
+                  <span>
+                    <small>
+                      第 {node.sequenceNo} 节 · {node.dueDate}
+                    </small>
+                    <strong>{node.paymentType}</strong>
+                  </span>
+                  <em>{money(node.remainingAmountCents)}</em>
+                  <ChevronRight aria-hidden="true" className="size-4" />
+                </button>
+                {onAction && session ? (() => {
+                  const action = nextForNode(node, session);
+                  return (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="lc-payment-node-action"
+                      onClick={() => {
+                        if (action.kind === 'view') setResourcesOpen(true);
+                        else onAction(model, node.id);
+                      }}
+                    >
+                      {action.label}
+                    </Button>
+                  );
+                })() : null}
+              </div>
               {(node.id === currentNode?.id || showAll) && (
                 <TaskTree
                   model={model}
@@ -541,7 +605,6 @@ function ProjectPath({
                   onExpand={(id) =>
                     setExpandedTaskId(expandedTaskId === id ? null : id)
                   }
-                  onOpen={onOpen}
                   onAction={onAction}
                 />
               )}
@@ -587,19 +650,13 @@ function ProjectPath({
         >
           项目资料
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => onOpen(model.project.id)}
-        >
-          完整页面
-        </Button>
       </footer>
       <ProjectResources
         model={model}
         open={resourcesOpen}
         onOpenChange={setResourcesOpen}
-        onOpen={onOpen}
+        session={session}
+        onDone={onDone}
       />
     </aside>
   );
@@ -611,12 +668,16 @@ export function ProjectIndex({
   onSelect,
   onOpen,
   onAction,
+  session,
+  onDone,
 }: {
   models: ProjectModel[];
   selectedId: string | null;
   onSelect: (projectId: string) => void;
   onOpen: OpenProject;
   onAction?: ProjectAction;
+  session?: DemoSession;
+  onDone?: (message: string) => Promise<void>;
 }) {
   const selected = selectedId
     ? (models.find((model) => model.project.id === selectedId) ?? null)
@@ -788,8 +849,9 @@ export function ProjectIndex({
           key={selected.project.id}
           model={selected}
           onOpen={onOpen}
-          onClose={() => onSelect('')}
           onAction={onAction}
+          session={session}
+          onDone={onDone}
         />
       )}
     </section>

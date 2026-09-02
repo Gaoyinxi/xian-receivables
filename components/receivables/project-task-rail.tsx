@@ -86,7 +86,7 @@ export function ProjectTaskRail({
                   data-task-card={node.id}
                   data-tone={state.tone}
                   onClick={() => onOpenNode(node.id)}
-                  aria-label={`第 ${node.sequenceNo} 节点，${node.paymentType}，${state.label}。点击进入处理页。`}
+                  aria-label={`第 ${node.sequenceNo} 节点，${node.paymentType}，${state.label}。点击展开节点任务。`}
                 >
                   <span className="lc-task-card-topline">
                     <span>节点 {String(node.sequenceNo).padStart(2, '0')}</span>
@@ -97,7 +97,7 @@ export function ProjectTaskRail({
                   <span className="lc-task-card-hover">
                     <span>{node.dueDate} 到期 · 剩余 {money(node.remainingAmountCents)}</span>
                     <span>{state.detail}</span>
-                    <span className="lc-task-open">进入处理页 <ArrowRight aria-hidden="true" className="size-3" /></span>
+                    <span className="lc-task-open">展开节点 <ArrowRight aria-hidden="true" className="size-3" /></span>
                   </span>
                 </button>
               </li>

@@ -12,11 +12,7 @@ import {
 import type { BootstrapData, ReceivableRecord } from '@/lib/types';
 import { ProjectContract } from './project-contract';
 import { ProjectReceipts } from './project-money';
-import {
-  ProjectAudit,
-  ProjectCollections,
-  ProjectNodes,
-} from './project-records';
+import { ProjectCollections, ProjectNodes } from './project-records';
 import { ProjectRisk } from './project-risk';
 import { ProjectTimeline } from './project-timeline';
 import { RiskBadge, WriteoffBadge } from './design-system';
@@ -181,6 +177,7 @@ export function ProjectNodeWorkspace({
           onConfirm={operations.onConfirm}
           onReceipt={operations.onReceipt}
           onCollection={operations.onCollection}
+          compact
         />
         <ProjectTimeline
           model={model}
@@ -208,7 +205,7 @@ export function ProjectNodeWorkspace({
           />
         </details>
         <details className="lc-flow-details">
-          <summary>项目资料、风险与审计</summary>
+          <summary>项目资料与风险</summary>
           <ProjectContract
             model={model}
             session={data.session}
@@ -220,7 +217,6 @@ export function ProjectNodeWorkspace({
             today={today}
             onCollection={operations.onCollection}
           />
-          <ProjectAudit model={model} />
         </details>
       </main>
     </div>

@@ -18,24 +18,30 @@ export function ProjectDirectory({
   data,
   models,
   archived = false,
+  initialSelectedId,
   onOpen,
   onNew,
   onImport,
   onArchiveChange,
   onAction,
+  onDone,
 }: {
   data: BootstrapData;
   models: ProjectModel[];
   archived?: boolean;
+  initialSelectedId?: string | null;
   onOpen: OpenProject;
   onNew: () => void;
-  onImport: () => void;
+  onImport?: () => void;
   onArchiveChange: (archived: boolean) => void;
   onAction?: (model: ProjectModel) => void;
+  onDone?: (message: string) => Promise<void>;
 }) {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    initialSelectedId ?? null,
+  );
   const [quickFilter, setQuickFilter] = useState<ProjectQuickFilter>('all');
   const [district, setDistrict] = useState('all');
   const [category, setCategory] = useState('all');
@@ -101,7 +107,7 @@ export function ProjectDirectory({
           </div>
           {!archived && (
             <div className="lc-approved-head-actions">
-              <Button variant="outline" onClick={onImport}>
+              <Button variant="outline" onClick={() => onImport?.()}>
                 <FileSpreadsheet aria-hidden="true" />
                 导入 Excel
               </Button>
@@ -175,29 +181,6 @@ export function ProjectDirectory({
           label="搜索项目、合同、区域或负责人"
           placeholder="项目 / 合同编码 / 区域 / 负责人"
         />
-        <div className="lc-approved-view-tabs" aria-label="应收状态">
-          <button
-            type="button"
-            data-active={quickFilter === 'all'}
-            onClick={() => setQuickFilter('all')}
-          >
-            全部
-          </button>
-          <button
-            type="button"
-            data-active={quickFilter === 'outstanding'}
-            onClick={() => setQuickFilter('outstanding')}
-          >
-            待收
-          </button>
-          <button
-            type="button"
-            data-active={quickFilter === 'overdue'}
-            onClick={() => setQuickFilter('overdue')}
-          >
-            逾期
-          </button>
-        </div>
         <div className="lc-approved-selects">
           <NativeSelect
             aria-label="全部分类"
@@ -242,6 +225,8 @@ export function ProjectDirectory({
           onSelect={setSelectedId}
           onOpen={onOpen}
           onAction={onAction}
+          session={data.session}
+          onDone={onDone}
         />
       ) : (
         <EmptyState

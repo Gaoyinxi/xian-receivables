@@ -195,12 +195,12 @@ async function seedDatabase() {
       '["数智签约","权责项目"]',
       'dist-beilin',
       '碑林政企客户团队',
-      '西安某公共服务单位',
+      '西安市碑林区政务服务中心',
       '政府',
-      '客户联系人甲',
-      '交付负责人甲',
-      '客户经理甲',
-      '交付经理甲',
+      '张工',
+      '陈工',
+      '王经理',
+      '赵经理',
       '验收中',
       '2026-02-18',
       245_000_000,
@@ -216,12 +216,12 @@ async function seedDatabase() {
       '["信产签约"]',
       'dist-yanta',
       '雁塔政企客户团队',
-      '西安某数据服务单位',
+      '西安市雁塔区大数据服务中心',
       '政府',
-      '客户联系人乙',
-      '交付负责人乙',
-      '客户经理乙',
-      '交付经理乙',
+      '李工',
+      '刘工',
+      '孙经理',
+      '周经理',
       '执行中',
       '2026-01-12',
       420_000_000,
@@ -237,12 +237,12 @@ async function seedDatabase() {
       '["数智签约"]',
       'dist-lianhu',
       '莲湖政企客户团队',
-      '西安某基层治理单位',
+      '西安市莲湖区城市管理局',
       '政府',
-      '客户联系人丙',
-      '交付负责人丙',
-      '客户经理丙',
-      '交付经理丙',
+      '赵工',
+      '高工',
+      '马经理',
+      '何经理',
       '执行中',
       '2026-04-10',
       168_000_000,
@@ -258,12 +258,12 @@ async function seedDatabase() {
       '["确认欠费"]',
       'dist-beilin',
       '碑林政企客户团队',
-      '西安某公共事业单位',
+      '西安城市运营集团有限公司',
       '企业',
-      '客户联系人丁',
-      '交付负责人丁',
-      '客户经理丁',
-      '交付经理丁',
+      '周工',
+      '梁工',
+      '吴经理',
+      '郑经理',
       '执行中',
       '2026-08-01',
       195_000_000,
@@ -279,12 +279,12 @@ async function seedDatabase() {
       '["权责项目"]',
       'dist-yanta',
       '雁塔政企客户团队',
-      '西安某信息技术单位',
+      '西安通信建设工程有限公司',
       '企业',
-      '客户联系人戊',
-      '交付负责人戊',
-      '客户经理戊',
-      '交付经理戊',
+      '黄工',
+      '冯工',
+      '韩经理',
+      '唐经理',
       '已关闭',
       '2025-06-20',
       132_000_000,
@@ -300,12 +300,12 @@ async function seedDatabase() {
       '["信产签约","确认欠费"]',
       'dist-lianhu',
       '莲湖政企客户团队',
-      '西安某城市运行单位',
+      '西安市城市运行管理中心',
       '政府',
-      '客户联系人己',
-      '交付负责人己',
-      '客户经理己',
-      '交付经理己',
+      '何工',
+      '郭工',
+      '朱经理',
+      '胡经理',
       '维保期',
       '2025-08-08',
       310_000_000,
@@ -505,7 +505,7 @@ async function seedDatabase() {
         '2026-08-12',
         '客户首笔付款',
         'SYSTEM_SEED',
-        '演示数据',
+        '系统初始化样例',
         '2026-08-12T03:20:00.000Z',
       ),
     db
@@ -522,7 +522,7 @@ async function seedDatabase() {
         '2026-08-28',
         '质保金全额到账',
         'SYSTEM_SEED',
-        '演示数据',
+        '系统初始化样例',
         '2026-08-28T08:30:00.000Z',
       ),
     db
@@ -539,7 +539,7 @@ async function seedDatabase() {
         '2026-08-20',
         '客户确认剩余款项正在审批',
         'SYSTEM_SEED',
-        '演示数据',
+        '系统初始化样例',
         '2026-08-20T06:10:00.000Z',
       ),
     db
@@ -556,7 +556,7 @@ async function seedDatabase() {
         '2026-08-12',
         '双方确认付款日期',
         'SYSTEM_SEED',
-        '演示数据',
+        '系统初始化样例',
         '2026-08-12T07:40:00.000Z',
       ),
     db
@@ -573,7 +573,7 @@ async function seedDatabase() {
         '2026-05-10',
         '客户要求补充验收归档资料',
         'SYSTEM_SEED',
-        '演示数据',
+        '系统初始化样例',
         '2026-05-10T05:30:00.000Z',
       ),
     db
@@ -601,7 +601,7 @@ async function seedDatabase() {
       null,
       'SEED',
       'CITY_ADMIN',
-      '演示数据',
+      '系统初始化样例',
       '2026-08-12T03:20:00.000Z',
     ],
     [
@@ -646,6 +646,63 @@ async function seedDatabase() {
   await db.batch(statements);
 }
 
+// Existing demo databases may already have seed_v1. Refresh only records that
+// are still owned by the system seed so the examples become realistic without
+// touching user-created or user-edited business data.
+async function upgradeDemoData() {
+  const db = getRawDb();
+  const applied = await db
+    .prepare("SELECT value FROM app_meta WHERE key = 'seed_v2'")
+    .first<{ value: string }>();
+  if (applied) return;
+  const updates = [
+    ['proj-beilin-community', '西安市碑林区政务服务中心', '张工', '陈工', '王经理', '赵经理'],
+    ['proj-yanta-data', '西安市雁塔区大数据服务中心', '李工', '刘工', '孙经理', '周经理'],
+    ['proj-lianhu-network', '西安市莲湖区城市管理局', '赵工', '高工', '马经理', '何经理'],
+    ['proj-beilin-cloud', '西安城市运营集团有限公司', '周工', '梁工', '吴经理', '郑经理'],
+    ['proj-yanta-security', '西安通信建设工程有限公司', '黄工', '冯工', '韩经理', '唐经理'],
+    ['proj-lianhu-platform', '西安市城市运行管理中心', '何工', '郭工', '朱经理', '胡经理'],
+  ] as const;
+  await db.batch([
+    ...updates.map(([id, customer, contact, owner, account, delivery]) =>
+      db
+        .prepare(
+          `UPDATE projects SET customer_name = ?, customer_contact = ?,
+           delivery_owner = ?, account_manager = ?, delivery_manager = ?
+           WHERE id = ? AND created_by = 'SYSTEM_SEED'`,
+        )
+        .bind(customer, contact, owner, account, delivery, id),
+    ),
+    db
+      .prepare(
+        `UPDATE receipts SET note = '客户首笔付款', created_by_name = '系统初始化样例'
+         WHERE created_by = 'SYSTEM_SEED' AND id = 'receipt-yanta-data-1'`,
+      )
+      .bind(),
+    db
+      .prepare(
+        `UPDATE receipts SET note = '质保金全额到账', created_by_name = '系统初始化样例'
+         WHERE created_by = 'SYSTEM_SEED' AND id = 'receipt-yanta-security-1'`,
+      )
+      .bind(),
+    db
+      .prepare(
+        `UPDATE collection_events SET created_by_name = '雁塔区填报人'
+         WHERE created_by = 'SYSTEM_SEED' AND id = 'collection-yanta-data-1'`,
+      )
+      .bind(),
+    db
+      .prepare(
+        `UPDATE collection_events SET created_by_name = '莲湖区填报人'
+         WHERE created_by = 'SYSTEM_SEED' AND id = 'collection-lianhu-platform-1'`,
+      )
+      .bind(),
+    db
+      .prepare("INSERT OR IGNORE INTO app_meta (key, value) VALUES ('seed_v2', ?)")
+      .bind(SEED_TIMESTAMP),
+  ]);
+}
+
 let initializationPromise: Promise<void> | null = null;
 
 // Reference configuration is not sample business data. Formal installations start empty.
@@ -679,6 +736,7 @@ export function ensureDatabase(): Promise<void> {
       .prepare("SELECT value FROM app_meta WHERE key = 'seed_v1'")
       .first<{ value: string }>();
     if (!seed && isDemoSeedEnabled()) await seedDatabase();
+    if (isDemoSeedEnabled()) await upgradeDemoData();
     await db.prepare('PRAGMA optimize').run();
   })().catch((error) => {
     initializationPromise = null;

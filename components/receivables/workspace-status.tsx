@@ -10,11 +10,14 @@ export function WorkspaceStatus({
   updatedAt,
   error,
   onRetry,
+  hideWhenFresh = false,
 }: {
   refreshing: boolean;
   updatedAt: string | null;
   error: string | null;
   onRetry: () => void;
+  /** Keep errors and active sync feedback visible while hiding passive chrome. */
+  hideWhenFresh?: boolean;
 }) {
   const [offline, setOffline] = useState(false);
   useEffect(() => {
@@ -27,6 +30,9 @@ export function WorkspaceStatus({
       window.removeEventListener('offline', update);
     };
   }, []);
+  if (hideWhenFresh && !offline && !error && !refreshing) {
+    return null;
+  }
   return (
     <output className="app-sync-status" aria-live="polite">
       {offline && <WifiOff aria-hidden="true" className="size-4" />}

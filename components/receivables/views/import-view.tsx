@@ -55,11 +55,13 @@ export function ImportView({
     committedRows: number;
     rowErrors: RowError[];
   } | null>(null);
-  const [rows, setRows] = React.useState<Array<Record<string, unknown>>>([]);
+  const [file, setFile] = React.useState<File | null>(null);
   const [preview, setPreview] = React.useState<ImportPreview | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
+  const [autoImport, setAutoImport] = React.useState(true);
   const uploadInputId = React.useId();
+  const [inputKey, setInputKey] = React.useState(0);
   const templates = [
     {
       kind: 'PROJECT' as const,
@@ -89,40 +91,15 @@ export function ImportView({
     setError(null);
     setPreview(null);
     setReport(null);
-    if (!file.name.toLowerCase().endsWith('.xlsx')) {
-      setError('请使用标准模板上传 .xlsx 文件');
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      setError('Excel 文件不能超过 10MB，请拆分后导入');
-      return;
-    }
+    setFile(file);
     setBusy(true);
     try {
-      const XLSX = await import('xlsx');
-      const workbook = XLSX.read(await file.arrayBuffer(), {
-        type: 'array',
-        cellDates: true,
-      });
-      const sheet =
-        workbook.Sheets['导入数据'] || workbook.Sheets[workbook.SheetNames[0]];
-      const parsed = XLSX.utils
-        .sheet_to_json<Record<string, unknown>>(sheet, {
-          defval: '',
-          raw: false,
-          dateNF: 'yyyy-mm-dd',
-        })
-        .filter((row) =>
-          Object.values(row).some((value) => String(value).trim() !== ''),
-        );
-      if (!parsed.length) throw new Error('模板中没有可导入数据');
-      const result = await importService.preview({
-        kind,
-        fileName: file.name,
-        rows: parsed,
-      });
-      setRows(parsed);
+      const result = await importService.previewFile(file);
+      setKind(result.kind);
       setPreview(result);
+      if (autoImport && result.rowErrors.length === 0 && result.validRows.length) {
+        await commitFile(result, file);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : '文件解析失败');
     } finally {
@@ -130,20 +107,18 @@ export function ImportView({
     }
   }
 
-  async function commit() {
-    if (!preview || busy) return;
+  async function commitFile(nextPreview: ImportPreview, nextFile: File) {
     setBusy(true);
     setError(null);
     try {
-      const result = await importService.commit({
-        batchId: preview.batchId,
-        kind,
-        fileName: preview.fileName,
-        rows,
+      const result = await importService.commitFile({
+        batchId: nextPreview.batchId,
+        file: nextFile,
       });
-      setReport({ fileName: preview.fileName, ...result });
+      setReport({ fileName: nextPreview.fileName, ...result });
       setPreview(null);
-      setRows([]);
+      setFile(null);
+      setInputKey((value) => value + 1);
       await onDone(
         `成功导入 ${result.committedRows} 行${
           result.rowErrors.length
@@ -156,6 +131,11 @@ export function ImportView({
     } finally {
       setBusy(false);
     }
+  }
+
+  async function commit() {
+    if (!preview || !file || busy) return;
+    await commitFile(preview, file);
   }
 
   function downloadErrors() {
@@ -179,7 +159,7 @@ export function ImportView({
     );
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${source.fileName.replace(/\.xlsx$/i, '')}-错误明细.csv`;
+    link.download = `${source.fileName.replace(/\.xls[x]?$/i, '')}-错误明细.csv`;
     link.click();
     URL.revokeObjectURL(url);
   }
@@ -236,7 +216,8 @@ export function ImportView({
                   setKind(template.kind);
                   setPreview(null);
                   setReport(null);
-                  setRows([]);
+                  setFile(null);
+                  setInputKey((value) => value + 1);
                   setError(null);
                 }}
               >
@@ -263,19 +244,28 @@ export function ImportView({
             <UploadCloud className="mb-2 size-7 text-[var(--app-brand)]" />
           )}
           <span className="text-sm font-medium text-[var(--app-text-strong)]">
-            选择填写完成的 .xlsx 文件
+            选择填写完成的 Excel 文件
           </span>
           <span className="mt-1 text-xs text-muted-foreground">
-            单次最多 1000 行
+            系统自动识别模板并校验；单次最多 1000 行
           </span>
           <input
+            key={inputKey}
             id={uploadInputId}
             type="file"
-            accept=".xlsx"
+            accept=".xlsx,.xls"
             className="sr-only"
             disabled={busy}
             onChange={(event) => void chooseFile(event.target.files?.[0])}
           />
+        </label>
+        <label className="flex items-center gap-2 text-sm text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={autoImport}
+            onChange={(event) => setAutoImport(event.target.checked)}
+          />
+          校验无误后自动导入（有错误时保留预览）
         </label>
         <ErrorText error={error} />
         {report && (

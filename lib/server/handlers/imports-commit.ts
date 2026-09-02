@@ -2,6 +2,7 @@
 import { getRawDb } from '@/db/index';
 import { BusinessError, ok, routeError } from '@/lib/server/api';
 import { commitValidatedImport } from '@/lib/server/import-commit';
+import { parseImportFile } from '@/lib/server/import-file';
 import { validateImportRows } from '@/lib/server/imports';
 import { requireSession } from '@/lib/server/session';
 import { importCommitSchema } from '@/lib/validation';
@@ -9,7 +10,18 @@ import { importCommitSchema } from '@/lib/validation';
 export async function POST(request: Request) {
   try {
     const session = await requireSession(request);
-    const input = importCommitSchema.parse(await request.json());
+    const contentType = request.headers.get('content-type') ?? '';
+    const input = contentType.includes('multipart/form-data')
+      ? await (async () => {
+          const form = await request.formData();
+          const file = form.get('file');
+          const batchId = form.get('batchId');
+          if (!(file instanceof File) || typeof batchId !== 'string')
+            throw new BusinessError('IMPORT_FILE_REQUIRED', '缺少导入文件或批次');
+          const parsed = await parseImportFile(file);
+          return { ...parsed, batchId };
+        })()
+      : importCommitSchema.parse(await request.json());
     const batch = await getRawDb()
       .prepare(`SELECT kind, file_name AS fileName, status,
       created_by AS createdBy, district_id AS districtId FROM import_batches WHERE id = ?`)

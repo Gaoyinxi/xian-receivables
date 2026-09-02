@@ -1,29 +1,30 @@
 'use client';
 
-import {
-  Building2,
-  Database,
-  FolderKanban,
-  LayoutDashboard,
-  Settings2,
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { NAV_GROUPS, VIEW_TITLES, type View } from '@/lib/project-navigation';
+import { FolderKanban, Plus, Settings2 } from 'lucide-react';
+import type { BootstrapData } from '@/lib/types';
+import { roleLabels } from '@/lib/presentation';
+import { NAV_GROUPS, workspaceUrl, type View } from '@/lib/project-navigation';
 
 const icons = {
-  dashboard: LayoutDashboard,
   projects: FolderKanban,
-  data: Database,
-  system: Settings2,
+  settings: Settings2,
 };
 export function WorkspaceNavigation({
   view,
   onNavigate,
   mobile = false,
+  data,
+  onNew,
+  onImport,
+  onOpen,
 }: {
   view: View;
   onNavigate: (view: View) => void;
   mobile?: boolean;
+  data?: BootstrapData;
+  onNew?: () => void;
+  onImport?: () => void;
+  onOpen?: (projectId: string, section?: 'overview' | 'audit') => void;
 }) {
   const group =
     NAV_GROUPS.find((g) => (g.views as readonly string[]).includes(view)) ??
@@ -31,17 +32,28 @@ export function WorkspaceNavigation({
   const items = NAV_GROUPS.map((item) => {
     const Icon = icons[item.id];
     return (
-      <button
+      <a
         key={item.id}
-        type="button"
+        href={workspaceUrl({ view: item.views[0] })}
         className={mobile ? 'lc-mobile-link' : 'app-sidebar-link'}
         data-active={item.id === group.id}
         aria-current={item.id === group.id ? 'page' : undefined}
-        onClick={() => onNavigate(item.views[0])}
+        onClick={(event) => {
+          if (
+            event.button !== 0 ||
+            event.metaKey ||
+            event.ctrlKey ||
+            event.shiftKey ||
+            event.altKey
+          )
+            return;
+          event.preventDefault();
+          onNavigate(item.views[0]);
+        }}
       >
         <Icon aria-hidden="true" className="size-4" />
         <span>{item.label}</span>
-      </button>
+      </a>
     );
   });
   if (mobile)
@@ -56,46 +68,96 @@ export function WorkspaceNavigation({
   return (
     <aside className="app-sidebar lc-sidebar app-glass fixed z-30 hidden flex-col lg:flex">
       <div className="lc-brand">
-        <Building2 aria-hidden="true" className="size-7" />
+        <span className="lc-brand-mark" aria-hidden="true">
+          AR
+        </span>
         <div>
           <strong>项目应收</strong>
-          <small className="app-brand-caption">西安 · 政企账务协同</small>
+          <small className="app-brand-caption">应收生命周期工作台</small>
         </div>
       </div>
-      <nav aria-label="主导航" className="space-y-2 px-3 py-6">
-        {items}
+      {data?.session.role === 'CITY_ADMIN' && onNew ? (
+        <button type="button" className="lc-sidebar-new" onClick={onNew}>
+          <span>新建项目</span>
+          <Plus aria-hidden="true" className="size-4" />
+        </button>
+      ) : null}
+      <nav
+        aria-label="主导航"
+        className="lc-sidebar-nav lc-approved-sidebar-nav"
+      >
+        {!data ? (
+          items
+        ) : (
+          <>
+            <button
+              type="button"
+              className="app-sidebar-link"
+              data-active={view === 'projects' || view === 'history'}
+              aria-current={
+                view === 'projects' || view === 'history' ? 'page' : undefined
+              }
+              onClick={() => onNavigate('projects')}
+            >
+              <span>所有项目</span>
+            </button>
+            <button
+              type="button"
+              className="app-sidebar-link"
+              onClick={onImport}
+            >
+              <span>导入</span>
+            </button>
+            <button
+              type="button"
+              className="app-sidebar-link"
+              disabled={!data?.projects.length}
+              onClick={() =>
+                data?.projects[0] && onOpen?.(data.projects[0].id, 'audit')
+              }
+            >
+              <span>审计</span>
+            </button>
+            <button
+              type="button"
+              className="app-sidebar-link lc-sidebar-settings-link"
+              data-active={view === 'account'}
+              aria-current={view === 'account' ? 'page' : undefined}
+              onClick={() => onNavigate('account')}
+            >
+              <span>设置</span>
+            </button>
+          </>
+        )}
       </nav>
+      {data?.projects.length ? (
+        <section className="lc-recent-projects" aria-label="最近项目">
+          <span>最近项目</span>
+          {data.projects.slice(0, 3).map((project) => (
+            <button
+              key={project.id}
+              type="button"
+              onClick={() => onOpen?.(project.id, 'overview')}
+            >
+              <i aria-hidden="true" />
+              <strong>{project.name}</strong>
+            </button>
+          ))}
+        </section>
+      ) : null}
       <div className="lc-sidebar-footer">
-        <span>西安市 · 项目应收工作空间</span>
+        {data ? (
+          <div className="lc-sidebar-profile">
+            <b aria-hidden="true">{data.session.displayName.slice(0, 1)}</b>
+            <span>
+              <strong>{data.session.displayName}</strong>
+              <small>{roleLabels[data.session.role]}</small>
+            </span>
+          </div>
+        ) : (
+          <span>西安市 · 项目应收工作空间</span>
+        )}
       </div>
     </aside>
-  );
-}
-
-export function WorkspaceSubnav({
-  view,
-  onNavigate,
-}: {
-  view: View;
-  onNavigate: (view: View) => void;
-}) {
-  const group = NAV_GROUPS.find((g) =>
-    (g.views as readonly string[]).includes(view),
-  );
-  if (!group || group.views.length < 2) return null;
-  return (
-    <nav className="lc-subnav" aria-label={`${group.label}视图`}>
-      {group.views.map((item) => (
-        <Button
-          key={item}
-          size="sm"
-          variant="ghost"
-          aria-current={view === item ? 'page' : undefined}
-          onClick={() => onNavigate(item)}
-        >
-          {VIEW_TITLES[item]}
-        </Button>
-      ))}
-    </nav>
   );
 }

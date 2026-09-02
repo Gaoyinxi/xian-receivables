@@ -89,7 +89,7 @@
   gap: var(--app-space-4);
 }
 .lc-kpis dd,
-.lc-project-totals dd {
+.lc-node-page-totals dd {
   font-family: var(--font-mono);
   letter-spacing: -0.04em;
 }

@@ -1,41 +1,18 @@
 'use client';
+
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { canCreateOperationalRecord } from '@/lib/domain';
-import {
-  dateTime,
-  money,
-  nextForNode,
-  STAGES,
-  type NextAction,
-  type ProjectModel,
-} from '@/lib/project-lifecycle';
-import {
-  PROJECT_SECTIONS,
-  PROJECT_SECTION_GROUPS,
-  type ProjectSection,
-} from '@/lib/project-navigation';
+import { money, type ProjectModel } from '@/lib/project-lifecycle';
+import type { ProjectSection } from '@/lib/project-navigation';
 import type {
   BootstrapData,
   CollectionAction,
   CollectionRecord,
   ReceiptRecord,
 } from '@/lib/types';
-import { StageBadge, RISK_LABELS } from './project-primitives';
-import {
-  LifecycleTrack,
-  LifecycleEvidence,
-  ProjectTimeline,
-} from './project-timeline';
-import { ProjectMoney, ProjectReceipts } from './project-money';
-import { ProjectRisk } from './project-risk';
-import { ProjectContract } from './project-contract';
-import {
-  ProjectNodes,
-  ProjectCollections,
-  ProjectAudit,
-} from './project-records';
+import { StageBadge } from './project-primitives';
+import { ProjectNodeWorkspace } from './project-node-workspace';
+import { ProjectTaskRail } from './project-task-rail';
 
 export type ProjectOperations = {
   onNode: () => void;
@@ -45,6 +22,67 @@ export type ProjectOperations = {
   onCorrectReceipt: (record: ReceiptRecord) => void;
   onCorrectCollection: (record: CollectionRecord) => void;
 };
+
+function ProjectOverview({
+  model,
+  onBack,
+  onOpenNode,
+  onOpenNext,
+  onCreateNode,
+}: {
+  model: ProjectModel;
+  onBack: () => void;
+  onOpenNode: (nodeId: string) => void;
+  onOpenNext: () => void;
+  onCreateNode: () => void;
+}) {
+  return (
+    <div className="lc-workspace lc-project-overview">
+      <header className="lc-project-header lc-project-overview-header">
+        <nav className="lc-project-breadcrumb" aria-label="项目位置">
+          <Button variant="ghost" size="sm" onClick={onBack}>
+            <ArrowLeft />
+            项目
+          </Button>
+          <span aria-hidden="true">/</span>
+          <strong aria-current="page">项目概览</strong>
+        </nav>
+        <div className="lc-project-title">
+          <div>
+            <p>
+              {model.project.projectCode} · {model.project.districtName} ·{' '}
+              {model.project.customerName}
+            </p>
+            <h1>{model.project.name}</h1>
+          </div>
+          <StageBadge stage={model.stage} />
+        </div>
+        <p className="lc-project-key-amount">
+          当前剩余应收 <strong>{money(model.remaining)}</strong>
+          {model.draft > 0 && <span> · 待确认 {money(model.draft)}</span>}
+        </p>
+      </header>
+      <div className="lc-project-next-line">
+        <div>
+          <span>当前任务</span>
+          <p>{model.next.reason}</p>
+        </div>
+        <Button onClick={model.nodes.length ? onOpenNext : onCreateNode}>
+          {model.next.label}
+          <ArrowRight />
+        </Button>
+      </div>
+      <main className="lc-project-overview-main" aria-label="项目付款节点任务链">
+        <ProjectTaskRail
+          model={model}
+          onOpenNode={onOpenNode}
+          onCreateNode={onCreateNode}
+        />
+      </main>
+    </div>
+  );
+}
+
 export function ProjectWorkspace({
   model,
   data,
@@ -68,227 +106,51 @@ export function ProjectWorkspace({
   onDone: (message: string) => Promise<void>;
   operations: ProjectOperations;
 }) {
-  const session = data.session;
-  const focused = model.nodes.find((r) => r.id === focusedNodeId);
-  const missingNode = Boolean(focusedNodeId && !focused);
-  const next = focused ? nextForNode(focused, session) : model.next;
-  const group = PROJECT_SECTION_GROUPS.find((g) =>
-    (g.sections as readonly string[]).includes(section),
-  )!;
-  const receiptTarget = focusedNodeId
-    ? model.open.find((r) => r.id === focusedNodeId)
-    : model.open[0];
-  function act(action: NextAction) {
-    if (missingNode) return;
-    if (action.kind === 'node') operations.onNode();
-    else if (action.kind === 'confirm' && action.receivableId)
-      operations.onConfirm(action.receivableId);
-    else if (action.kind === 'collection' && action.receivableId)
-      operations.onCollection(action.receivableId);
-    else if (action.kind === 'receipt' && action.receivableId)
-      operations.onReceipt(action.receivableId);
-    else onSection(action.section, action.receivableId);
-  }
+  const focused = model.nodes.find((node) => node.id === focusedNodeId);
+  if (focused)
+    return (
+      <ProjectNodeWorkspace
+        model={model}
+        data={data}
+        node={focused}
+        today={today}
+        confirmingId={confirmingId}
+        onOverview={() => onSection('overview')}
+        onDone={onDone}
+        operations={operations}
+      />
+    );
+
+  const openNext = () => {
+    if (model.next.receivableId)
+      onSection('receivables', model.next.receivableId);
+    else if (model.next.kind === 'node') operations.onNode();
+    else onSection(model.next.section);
+  };
   return (
-    <div className="lc-workspace">
-      <header className="lc-project-header">
-        <Button variant="ghost" size="sm" onClick={onBack}>
-          <ArrowLeft />
-          返回项目列表
-        </Button>
-        <div className="lc-project-title">
-          <div>
-            <p>
-              {model.project.projectCode} · {model.project.districtName} ·{' '}
-              {model.project.customerName}
-            </p>
-            <h1>{model.project.name}</h1>
-          </div>
-          <div className="lc-project-badges">
-            <StageBadge stage={model.stage} />
-            <button
-              className="lc-risk-link"
-              data-risk={model.risk}
-              onClick={() => onSection('risk')}
-            >
-              {RISK_LABELS[model.risk]} ↗
-            </button>
-          </div>
-        </div>
-        <dl className="lc-project-totals">
-          {[
-            ['合同金额', model.project.contractAmountCents],
-            ['已形成应收', model.formed],
-            ['已回款', model.received],
-            ['剩余应收', model.remaining],
-          ].map(([label, amount]) => (
-            <div key={String(label)}>
-              <dt>{label}</dt>
-              <dd>{money(Number(amount))}</dd>
-            </div>
-          ))}
-        </dl>
-        <div className="lc-project-meta">
-          <span>
-            业务状态：{model.project.status} ·{' '}
-            {model.project.archivedAt ? '财务已归档' : '财务进行中'}
-          </span>
-          <span>
-            {model.draft > 0
-              ? `另有待确认 ${money(model.draft)}，不计入剩余应收。`
-              : '剩余应收为已确认口径。'}
-          </span>
-          <span>最近操作记录：{dateTime(model.lastActivity)}</span>
-        </div>
-      </header>
-      <div className="lc-next-action">
-        <div>
-          <span className="lc-eyebrow">
-            {missingNode
-              ? '节点不可用'
-              : `当前状态 · ${model.stage === 'SETTLED' ? '已形成应收结清' : focused?.confirmationStatus === 'DRAFT' ? '此应收待确认' : STAGES[model.stage]}`}
-          </span>
-          <p>
-            {missingNode
-              ? '链接中的节点不属于此项目或已不可用；不会自动切换到其他节点。'
-              : next.reason}
+    <div data-opened-section={section}>
+      {focusedNodeId ? (
+        <section className="lc-section">
+          <p className="lc-empty">
+            指定的付款节点不属于此项目或已不可用；没有自动打开其他节点。
           </p>
-          <small>处理权限：{next.responsible}</small>
-        </div>
-        <div className="lc-inline-actions">
-          {missingNode ? (
-            <Button variant="outline" onClick={() => onSection('receivables')}>
-              查看本项目节点
-            </Button>
-          ) : (
-            <Button
-              disabled={Boolean(confirmingId)}
-              aria-busy={Boolean(confirmingId)}
-              onClick={() => act(next)}
-            >
-              {confirmingId ? '正在确认…' : next.label}
-              <ArrowRight />
-            </Button>
-          )}
-          {!missingNode &&
-            receiptTarget &&
-            next.kind === 'collection' &&
-            canCreateOperationalRecord(
-              session.role,
-              session.districtId,
-              model.project.districtId,
-            ) && (
-              <Button
-                variant="outline"
-                onClick={() => operations.onReceipt(receiptTarget.id)}
-              >
-                登记实际回款
-              </Button>
-            )}
-        </div>
-      </div>
-      <Tabs
-        value={section}
-        onValueChange={(value) =>
-          onSection(value as ProjectSection, focusedNodeId)
-        }
-      >
-        <TabsList
-          variant="line"
-          className="lc-project-tabs"
-          aria-label="项目工作区域"
-        >
-          {PROJECT_SECTION_GROUPS.map((item) => (
-            <TabsTrigger
-              key={item.id}
-              value={item.id === group.id ? section : item.id}
-            >
-              {item.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-        {group.sections.length > 1 && (
-          <nav
-            className="lc-section-switcher"
-            aria-label={`${group.label}分类`}
+          <Button
+            className="m-4"
+            variant="outline"
+            onClick={() => onSection('overview')}
           >
-            {group.sections.map((key) => (
-              <Button
-                key={key}
-                variant="ghost"
-                size="sm"
-                aria-current={section === key ? 'page' : undefined}
-                onClick={() => onSection(key, focusedNodeId)}
-              >
-                {PROJECT_SECTIONS[key]}
-              </Button>
-            ))}
-          </nav>
-        )}
-        <TabsContent value="overview">
-          <ProjectTimeline
-            model={model}
-            today={today}
-            onNode={(id) => onSection('receivables', id)}
-          />
-          <details className="lc-disclosure lc-project-evidence">
-            <summary>金额与流程依据</summary>
-            <ProjectMoney model={model} />
-            <LifecycleTrack
-              model={model}
-              section={section}
-              onSection={(s) => onSection(s, focusedNodeId)}
-            />
-            <LifecycleEvidence model={model} onSection={onSection} />
-          </details>
-        </TabsContent>
-        <TabsContent value="contract">
-          <ProjectContract model={model} session={session} onDone={onDone} />
-        </TabsContent>
-        <TabsContent value="receivables">
-          <ProjectNodes
-            model={model}
-            session={session}
-            focusedNodeId={focusedNodeId}
-            confirmingId={confirmingId}
-            onNode={operations.onNode}
-            onConfirm={operations.onConfirm}
-            onReceipt={operations.onReceipt}
-            onCollection={operations.onCollection}
-          />
-        </TabsContent>
-        <TabsContent value="collections">
-          <ProjectCollections
-            model={model}
-            session={session}
-            focusedNodeId={focusedNodeId}
-            onNew={operations.onCollection}
-            onCorrect={operations.onCorrectCollection}
-          />
-        </TabsContent>
-        <TabsContent value="receipts">
-          <ProjectReceipts
-            model={model}
-            session={session}
-            focusedNodeId={
-              focusedNodeId ?? model.open[0]?.id ?? model.nodes[0]?.id
-            }
-            onReceipt={operations.onReceipt}
-            onCorrect={operations.onCorrectReceipt}
-          />
-        </TabsContent>
-        <TabsContent value="risk">
-          <ProjectRisk
-            model={model}
-            data={data}
-            today={today}
-            onCollection={operations.onCollection}
-          />
-        </TabsContent>
-        <TabsContent value="audit">
-          <ProjectAudit model={model} />
-        </TabsContent>
-      </Tabs>
+            返回项目概览
+          </Button>
+        </section>
+      ) : (
+        <ProjectOverview
+          model={model}
+          onBack={onBack}
+          onOpenNode={(nodeId) => onSection('receivables', nodeId)}
+          onOpenNext={openNext}
+          onCreateNode={operations.onNode}
+        />
+      )}
     </div>
   );
 }

@@ -17,6 +17,7 @@ import {
   type ProjectStage,
 } from '@/lib/project-lifecycle';
 import type { ProjectSection } from '@/lib/project-navigation';
+import { workspaceUrl } from '@/lib/project-navigation';
 
 export type OpenProject = (
   projectId: string,
@@ -61,12 +62,28 @@ export function ProjectRows({
         {models.map((model) => (
           <TableRow key={model.project.id}>
             <TableCell>
-              <button
+              <a
+                href={workspaceUrl({
+                  view: 'projects',
+                  projectId: model.project.id,
+                  section: 'overview',
+                })}
                 className="app-table-link app-data-title"
-                onClick={() => onOpen(model.project.id)}
+                onClick={(event) => {
+                  if (
+                    event.button !== 0 ||
+                    event.metaKey ||
+                    event.ctrlKey ||
+                    event.shiftKey ||
+                    event.altKey
+                  )
+                    return;
+                  event.preventDefault();
+                  onOpen(model.project.id);
+                }}
               >
                 {model.project.name}
-              </button>
+              </a>
               <p className="app-data-code">
                 {model.project.projectCode} · {model.project.districtName}
               </p>
@@ -100,14 +117,30 @@ export function ProjectRows({
               </div>
             </TableCell>
             <TableCell>
-              <button
+              <a
+                href={workspaceUrl({
+                  view: 'projects',
+                  projectId: model.project.id,
+                  section: 'risk',
+                })}
                 className="lc-risk-link"
                 data-risk={model.risk}
-                onClick={() => onOpen(model.project.id, 'risk')}
+                onClick={(event) => {
+                  if (
+                    event.button !== 0 ||
+                    event.metaKey ||
+                    event.ctrlKey ||
+                    event.shiftKey ||
+                    event.altKey
+                  )
+                    return;
+                  event.preventDefault();
+                  onOpen(model.project.id, 'risk');
+                }}
               >
                 {RISK_LABELS[model.risk]}
                 <ArrowUpRight aria-hidden="true" className="size-3" />
-              </button>
+              </a>
               <p className="lc-table-note">{model.next.label}</p>
             </TableCell>
             <TableCell>

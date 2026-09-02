@@ -20,6 +20,7 @@ export function ProjectNodes({
   model,
   session,
   focusedNodeId,
+  nodeId,
   confirmingId,
   onNode,
   onConfirm,
@@ -29,19 +30,25 @@ export function ProjectNodes({
   model: ProjectModel;
   session: DemoSession;
   focusedNodeId?: string;
+  nodeId?: string;
   confirmingId: string | null;
   onNode: () => void;
   onConfirm: (id: string) => void;
   onReceipt: (id: string) => void;
   onCollection: (id: string) => void;
 }) {
+  const nodes = nodeId
+    ? model.nodes.filter((node) => node.id === nodeId)
+    : model.nodes;
   return (
     <section className="lc-section">
       <div className="lc-section-heading">
         <div>
-          <h2>付款节点与应收确认</h2>
+          <h2>{nodeId ? '节点处理' : '项目处理链'}</h2>
           <p>
-            保存节点即形成待确认应收；已确认节点才能登记回款。项目始终保持在当前页面。
+            {nodeId
+              ? '确认应收后，可登记催收或实际回款；每次操作都会写入此节点动态。'
+              : '按付款节点依次处理：确认应收，然后登记催收或实际回款。每次操作都会更新下方动态。'}
           </p>
         </div>
         {canManageReceivable(
@@ -55,12 +62,12 @@ export function ProjectNodes({
           </Button>
         )}
       </div>
-      {!model.nodes.length && (
+      {!nodes.length && (
         <p className="lc-empty">
           尚无付款节点。根据合同建立第一笔应收，系统会计算约定付款日。
         </p>
       )}
-      {model.nodes.map((node) => (
+      {nodes.map((node) => (
         <article
           key={node.id}
           id={`project-node-${node.id}`}
@@ -181,18 +188,25 @@ export function ProjectCollections({
   model,
   session,
   focusedNodeId,
+  nodeId,
   onNew,
   onCorrect,
 }: {
   model: ProjectModel;
   session: DemoSession;
   focusedNodeId?: string;
+  nodeId?: string;
   onNew: (id: string, action?: CollectionAction) => void;
   onCorrect: (row: CollectionRecord) => void;
 }) {
-  const target = focusedNodeId
-    ? model.open.find((r) => r.id === focusedNodeId)
+  const target = nodeId
+    ? model.open.find((r) => r.id === nodeId)
+    : focusedNodeId
+      ? model.open.find((r) => r.id === focusedNodeId)
     : (model.overdueNodes[0] ?? model.open[0]);
+  const collections = nodeId
+    ? model.collections.filter((row) => row.receivableId === nodeId)
+    : model.collections;
   const canOperate = canCreateOperationalRecord(
     session.role,
     session.districtId,
@@ -215,7 +229,7 @@ export function ProjectCollections({
         )}
       </div>
       <ol className="lc-collection-list">
-        {model.collections.map((row) => (
+        {collections.map((row) => (
           <li
             key={row.id}
             className={row.status === 'VOIDED' ? 'is-voided' : ''}
@@ -260,7 +274,7 @@ export function ProjectCollections({
           </li>
         ))}
       </ol>
-      {!model.collections.length && (
+      {!collections.length && (
         <p className="lc-empty">
           尚未记录催收。跟进不是回款前置条件，实际到账后可直接登记回款。
         </p>

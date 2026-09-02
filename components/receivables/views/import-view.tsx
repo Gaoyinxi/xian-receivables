@@ -4,6 +4,7 @@ import { importService, type ImportPreview } from '@/services/operations';
 import * as React from 'react';
 import {
   Check,
+  ArrowLeft,
   Download,
   FileSpreadsheet,
   LoaderCircle,
@@ -36,9 +37,11 @@ import type { BootstrapData, ImportKind, RowError } from '@/lib/types';
 export function ImportView({
   data,
   onDone,
+  onBack,
 }: {
   data: BootstrapData;
   onDone: (message: string) => Promise<void>;
+  onBack?: () => void;
 }) {
   const [kind, setKind] = React.useState<ImportKind>(
     data.session.role === 'CITY_ADMIN'
@@ -184,9 +187,17 @@ export function ImportView({
   return (
     <>
       <PageHeading
-        eyebrow="导入中心"
-        title="模板下载与批量导入"
+        eyebrow="项目"
+        title="导入项目数据"
         description="上传后先预览并逐行校验；重复数据不会覆盖历史记录。"
+        actions={
+          onBack ? (
+            <Button variant="outline" onClick={onBack}>
+              <ArrowLeft aria-hidden="true" />
+              返回项目
+            </Button>
+          ) : undefined
+        }
       />
       <div className="grid gap-3 md:grid-cols-3">
         {templates.map((template) => (

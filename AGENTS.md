@@ -88,3 +88,20 @@ Every completed task must say either:
 
 An explicit user choice of model, request not to delegate, or stricter runtime
 policy overrides these repository defaults.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs are tracked in GitHub Issues for
+`Gaoyinxi/xian-receivables`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the five default canonical triage labels. See
+`docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Use a single-context layout with an optional root `CONTEXT.md` and system-wide
+ADRs under `docs/adr/`. See `docs/agents/domain.md`.

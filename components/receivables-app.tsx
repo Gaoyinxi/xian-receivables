@@ -11,24 +11,16 @@ import {
 import { BusinessCockpit } from '@/components/receivables/business-cockpit';
 import { ProjectDirectory } from '@/components/receivables/project-directory';
 import { ProjectWorkspace } from '@/components/receivables/project-workspace';
-import {
-  WorkspaceNavigation,
-  WorkspaceSubnav,
-} from '@/components/receivables/workspace-navigation';
-import {
-  GlobalRiskView,
-  AccountScopeView,
-} from '@/components/receivables/global-insights';
+import { WorkspaceNavigation } from '@/components/receivables/workspace-navigation';
+import { AccountScopeView } from '@/components/receivables/global-insights';
 import { buildPortfolio, shanghaiDate } from '@/lib/project-lifecycle';
 import {
-  parseWorkspaceHash,
-  projectHash,
   VIEW_TITLES,
   type View,
   type WorkspaceRoute,
   type ProjectSection,
 } from '@/lib/project-navigation';
-import { type ReceivableFilter } from '@/lib/workbench';
+import { useWorkspaceRouter } from '@/hooks/use-workspace-router';
 import { AlertTriangle, CircleCheckBig, RefreshCw, X } from 'lucide-react';
 import { EmptyState } from '@/components/receivables/design-system';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -43,31 +35,6 @@ import {
   IdentityControls,
   ApplicationHeader,
 } from '@/components/receivables/application-header';
-const ReceivablesView = React.lazy(() =>
-  import('@/components/receivables/views/receivables-view').then((module) => ({
-    default: module.ReceivablesView,
-  })),
-);
-const ReceiptsView = React.lazy(() =>
-  import('@/components/receivables/views/receipts-view').then((module) => ({
-    default: module.ReceiptsView,
-  })),
-);
-const CollectionsView = React.lazy(() =>
-  import('@/components/receivables/views/collections-view').then((module) => ({
-    default: module.CollectionsView,
-  })),
-);
-const AuditView = React.lazy(() =>
-  import('@/components/receivables/views/audit-view').then((module) => ({
-    default: module.AuditView,
-  })),
-);
-const RiskView = React.lazy(() =>
-  import('@/components/receivables/views/risk-view').then((module) => ({
-    default: module.RiskView,
-  })),
-);
 const ImportView = React.lazy(() =>
   import('@/components/receivables/views/import-view').then((module) => ({
     default: module.ImportView,
@@ -86,7 +53,11 @@ export type Notice = {
   message: string;
 };
 
-export function ReceivablesApp() {
+export function ReceivablesApp({
+  initialRoute,
+}: {
+  initialRoute?: WorkspaceRoute;
+} = {}) {
   const {
     data,
     loading,
@@ -105,9 +76,7 @@ export function ReceivablesApp() {
     },
     [],
   );
-  const [route, setRoute] = React.useState<WorkspaceRoute>({
-    view: 'dashboard',
-  });
+  const { route, pushRoute, replaceRoute } = useWorkspaceRouter(initialRoute);
   const view = route.view;
   const [contextProjectId, setContextProjectId] = React.useState<string | null>(
     null,
@@ -115,7 +84,6 @@ export function ReceivablesApp() {
   const [collectionInitialAction, setCollectionInitialAction] =
     React.useState<CollectionAction>('WECHAT');
   const [notice, setNotice] = React.useState<Notice | null>(null);
-  const [projectDialog, setProjectDialog] = React.useState(false);
   const [nodeDialog, setNodeDialog] = React.useState(false);
   const [receiptDialog, setReceiptDialog] = React.useState(false);
   const [receiptCorrection, setReceiptCorrection] =
@@ -126,14 +94,11 @@ export function ReceivablesApp() {
   const [operationTarget, setOperationTarget] = React.useState<string | null>(
     null,
   );
-  const [receivableStatus, setReceivableStatus] =
-    React.useState<ReceivableFilter>('ALL');
   const [confirmingId, setConfirmingId] = React.useState<string | null>(null);
   const identitySwitch = React.useRef(false);
 
   function navigate(next: View) {
-    setRoute({ view: next });
-    window.location.hash = next;
+    pushRoute({ view: next });
   }
   function openProject(
     projectId: string,
@@ -141,13 +106,7 @@ export function ReceivablesApp() {
     receivableId?: string,
   ) {
     if (identityRevision.current !== epoch) return;
-    const hash = projectHash(projectId, section, receivableId);
-    setRoute(parseWorkspaceHash(hash));
-    window.location.hash = hash;
-  }
-  function openNode(id: string) {
-    const node = data?.receivables.find((item) => item.id === id);
-    if (node) openProject(node.projectId, 'receivables', id);
+    pushRoute({ view: 'projects', projectId, section, receivableId });
   }
   function openOperation(
     kind: 'node' | 'receipt' | 'collection',
@@ -165,16 +124,20 @@ export function ReceivablesApp() {
     setCollectionInitialAction(action);
   }
 
-  React.useEffect(() => {
-    const restoreView = () => {
-      const next = window.location.hash.slice(1);
-      if (next === 'main-content') return;
-      setRoute(parseWorkspaceHash(next));
-    };
-    restoreView();
-    window.addEventListener('hashchange', restoreView);
-    return () => window.removeEventListener('hashchange', restoreView);
-  }, []);
+  function openNewProject() {
+    pushRoute(
+      { view: 'projects', newProject: true },
+      {
+        receivablesModal: true,
+        receivablesReturnTo: `${window.location.pathname}${window.location.search}`,
+      },
+    );
+  }
+
+  function closeNewProject() {
+    if (window.history.state?.receivablesModal) window.history.back();
+    else replaceRoute({ view: 'projects' });
+  }
 
   React.useEffect(() => {
     document.title = `${VIEW_TITLES[view]} · 项目应收管理系统`;
@@ -195,7 +158,7 @@ export function ReceivablesApp() {
     setSwitchingIdentity(true);
     identityRevision.current++;
     resetIdentity();
-    setProjectDialog(false);
+    if (route.newProject) replaceRoute({ view: 'projects' });
     setNodeDialog(false);
     setReceiptDialog(false);
     setCollectionDialog(false);
@@ -214,7 +177,7 @@ export function ReceivablesApp() {
             ? '当前可查看全部区县数据'
             : `当前仅可处理${districtCode ?? ''}对应区县数据`,
       });
-      navigate('dashboard');
+      navigate('projects');
     } catch (error) {
       setNotice({
         type: 'error',
@@ -288,7 +251,17 @@ export function ReceivablesApp() {
 
   if (loading || !data) return <WorkspaceSkeleton />;
 
-  const content = route.projectId ? (
+  const content = route.notFound ? (
+    <section className="lc-section">
+      <EmptyState
+        title="页面不存在"
+        description="链接无效或页面已调整。请返回工作台继续处理。"
+      />
+      <Button className="m-4" onClick={() => navigate('projects')}>
+        返回项目总览
+      </Button>
+    </section>
+  ) : route.projectId ? (
     currentProject ? (
       <ProjectWorkspace
         key={currentProject.project.id}
@@ -329,6 +302,8 @@ export function ReceivablesApp() {
         </Button>
       </section>
     )
+  ) : route.importing ? (
+    <ImportView data={data} onDone={done} onBack={() => navigate('projects')} />
   ) : (
     {
       dashboard: (
@@ -337,7 +312,7 @@ export function ReceivablesApp() {
           models={models}
           today={today}
           onOpen={openProject}
-          onNew={() => setProjectDialog(true)}
+          onNew={openNewProject}
           onProjects={() => navigate('projects')}
         />
       ),
@@ -347,7 +322,35 @@ export function ReceivablesApp() {
           data={data}
           models={models}
           onOpen={openProject}
-          onNew={() => setProjectDialog(true)}
+          onNew={openNewProject}
+          onImport={() => pushRoute({ view: 'projects', importing: true })}
+          onArchiveChange={(archived) =>
+            navigate(archived ? 'history' : 'projects')
+          }
+          onAction={(model) => {
+            if (model.next.kind === 'node')
+              openOperation('node', model.project.id);
+            else if (model.next.kind === 'receipt')
+              openOperation(
+                'receipt',
+                model.project.id,
+                model.next.receivableId,
+              );
+            else if (model.next.kind === 'collection')
+              openOperation(
+                'collection',
+                model.project.id,
+                model.next.receivableId,
+              );
+            else if (model.next.kind === 'confirm' && model.next.receivableId)
+              void confirmReceivable(model.next.receivableId);
+            else
+              openProject(
+                model.project.id,
+                model.next.section,
+                model.next.receivableId,
+              );
+          }}
         />
       ),
       history: (
@@ -357,39 +360,21 @@ export function ReceivablesApp() {
           models={models}
           archived
           onOpen={openProject}
-          onNew={() => setProjectDialog(true)}
+          onNew={openNewProject}
+          onImport={() => pushRoute({ view: 'projects', importing: true })}
+          onArchiveChange={(archived) =>
+            navigate(archived ? 'history' : 'projects')
+          }
+          onAction={(model) =>
+            openProject(
+              model.project.id,
+              model.next.section,
+              model.next.receivableId,
+            )
+          }
         />
       ),
-      receivables: (
-        <ReceivablesView
-          data={data}
-          status={receivableStatus}
-          onStatusChange={setReceivableStatus}
-          onSelect={openNode}
-          confirmingId={confirmingId}
-          onConfirm={(id) => void confirmReceivable(id)}
-          onNewNode={() => openOperation('node', null)}
-        />
-      ),
-      receipts: (
-        <ReceiptsView
-          data={data}
-          onNew={() => openOperation('receipt', null)}
-          onCorrect={setReceiptCorrection}
-        />
-      ),
-      collections: (
-        <CollectionsView
-          data={data}
-          onNew={() => openOperation('collection', null)}
-          onCorrect={setCollectionCorrection}
-        />
-      ),
-      imports: <ImportView data={data} onDone={done} />,
-      audit: <AuditView data={data} />,
-      risk: <RiskView data={data} onDone={done} />,
-      'risk-analysis': <GlobalRiskView models={models} onOpen={openProject} />,
-      account: <AccountScopeView data={data} />,
+      account: <AccountScopeView data={data} onDone={done} />,
     }[view]
   );
 
@@ -401,7 +386,14 @@ export function ReceivablesApp() {
       <a className="app-skip-link" href="#main-content">
         跳转到主要内容
       </a>
-      <WorkspaceNavigation view={view} onNavigate={navigate} />
+      <WorkspaceNavigation
+        view={view}
+        onNavigate={navigate}
+        data={data}
+        onNew={openNewProject}
+        onImport={() => pushRoute({ view: 'projects', importing: true })}
+        onOpen={openProject}
+      />
 
       <div className="app-workspace-body">
         <ApplicationHeader
@@ -425,9 +417,6 @@ export function ReceivablesApp() {
           />
         </div>
         <WorkspaceNavigation view={view} onNavigate={navigate} mobile />
-        {!route.projectId && (
-          <WorkspaceSubnav view={view} onNavigate={navigate} />
-        )}
 
         <main
           id="main-content"
@@ -482,12 +471,18 @@ export function ReceivablesApp() {
       </div>
 
       <ProjectDialog
-        key={projectDialog ? 'project-open' : 'project-closed'}
-        open={projectDialog}
+        key={route.newProject ? 'project-open' : 'project-closed'}
+        open={Boolean(route.newProject)}
         data={data}
-        onOpenChange={setProjectDialog}
+        onOpenChange={(open) => !open && closeNewProject()}
         onDone={done}
-        onCreated={(id) => openProject(id, 'receivables')}
+        onCreated={(id) =>
+          replaceRoute({
+            view: 'projects',
+            projectId: id,
+            section: 'receivables',
+          })
+        }
       />
       <NodeDialog
         key={nodeDialog ? `node-open-${contextProjectId}` : 'node-closed'}

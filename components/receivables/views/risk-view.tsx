@@ -24,9 +24,11 @@ import { formatDateTime } from '@/lib/presentation';
 export function RiskView({
   data,
   onDone,
+  embedded = false,
 }: {
   data: BootstrapData;
   onDone: (message: string) => Promise<void>;
+  embedded?: boolean;
 }) {
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
@@ -48,11 +50,13 @@ export function RiskView({
   }
   return (
     <>
-      <PageHeading
-        eyebrow="风险设置"
-        title="逾期与法律风险阈值"
-        description="修改规则会立即影响所有未结清应收，并永久记录修改原因。"
-      />
+      {!embedded && (
+        <PageHeading
+          eyebrow="风险设置"
+          title="逾期与法律风险阈值"
+          description="修改规则会立即影响所有未结清应收，并永久记录修改原因。"
+        />
+      )}
       <div className="grid gap-4 xl:grid-cols-[minmax(0,720px)_1fr]">
         <Card className="app-panel">
           <CardHeader>

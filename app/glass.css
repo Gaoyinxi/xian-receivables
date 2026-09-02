@@ -13,10 +13,14 @@
 }
 
 .app-topbar {
-  top: max(var(--app-chrome-gap), env(safe-area-inset-top));
-  margin: var(--app-chrome-gap) 1.5rem 0;
-  border: 1px solid var(--app-glass-border);
-  border-radius: var(--app-glass-radius);
+  top: 0;
+  margin: 0;
+  border: 0;
+  border-bottom: 1px solid var(--app-border);
+  border-radius: 0;
+  background: rgb(255 255 255 / 92%);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
 }
 
 /* Chrome stays separate from the opaque, scrollable form below it. */
@@ -53,12 +57,6 @@
     background-color: var(--app-chrome);
     -webkit-backdrop-filter: blur(var(--app-glass-blur)) saturate(135%);
     backdrop-filter: blur(var(--app-glass-blur)) saturate(135%);
-  }
-}
-
-@media (max-width: 767px) {
-  .app-topbar {
-    margin-inline: var(--app-chrome-gap);
   }
 }
 

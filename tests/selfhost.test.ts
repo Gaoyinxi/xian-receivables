@@ -313,6 +313,38 @@ void test(
             /script-src 'self'/,
           );
           for (const path of [
+            '/projects',
+            '/projects/new',
+            '/projects/example',
+            '/projects/example/receipts?node=example-node',
+            '/settings',
+          ]) {
+            const deepLink = await fetch(`${base}${path}`);
+            assert.equal(deepLink.status, 200, path);
+            assert.match(deepLink.headers.get('content-type')!, /text\/html/);
+          }
+          const head = await fetch(`${base}/projects/example`, {
+            method: 'HEAD',
+          });
+          assert.equal(head.status, 200);
+          assert.equal(await head.text(), '');
+          for (const path of [
+            '/unknown',
+            '/projects/example/unknown',
+            '/projects/example/receipts/extra',
+            '/manage/audit',
+            '/assets/missing.js',
+          ])
+            assert.equal((await fetch(`${base}${path}`)).status, 404, path);
+          assert.equal(
+            (
+              await fetch(`${base}/projects/example`, {
+                method: 'POST',
+              })
+            ).status,
+            405,
+          );
+          for (const path of [
             '/.env',
             '/.data/selfhost/receivables.sqlite',
             '/apps/api/src/main.ts',

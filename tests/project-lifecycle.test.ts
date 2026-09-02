@@ -4,6 +4,8 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { ProjectWorkspace } from '../components/receivables/project-workspace';
 import { BusinessCockpit } from '../components/receivables/business-cockpit';
+import { ProjectDirectory } from '../components/receivables/project-directory';
+import { ProjectIndex } from '../components/receivables/project-index';
 import { ProjectTimeline } from '../components/receivables/project-timeline';
 import { WorkspaceNavigation } from '../components/receivables/workspace-navigation';
 import { searchProjects } from '../lib/project-search';
@@ -18,12 +20,15 @@ import {
 } from '../lib/project-lifecycle';
 import {
   contextualCandidates,
+  isWorkspaceDocumentPath,
+  legacyWorkspaceRoute,
+  parseWorkspaceLocation,
   parseWorkspaceHash,
   projectHash,
+  workspaceUrl,
   PROJECT_SECTIONS,
   PROJECT_SECTION_GROUPS,
   NAV_GROUPS,
-  type ProjectSection,
 } from '../lib/project-navigation';
 import { lifecycleSteps, projectEvents } from '../lib/project-activity';
 import type {
@@ -298,15 +303,158 @@ void test('下一步遵守市级确认、区县节点维护和跨区操作权限
   data.receivables = [];
   assert.equal(buildPortfolio(data)[0].next.kind, 'view');
 });
-void test('项目深链接：保留项目和节点，旧路由兼容，非法链接安全回退', () => {
+void test('项目深链接：保留项目和节点，已移除的全局页面安全回退', () => {
   assert.deepEqual(parseWorkspaceHash(projectHash('p', 'receipts', 'r')), {
     view: 'projects',
     projectId: 'p',
     section: 'receipts',
     receivableId: 'r',
   });
-  assert.deepEqual(parseWorkspaceHash('#receipts'), { view: 'receipts' });
-  assert.deepEqual(parseWorkspaceHash('#projects/%bad'), { view: 'dashboard' });
+  assert.deepEqual(parseWorkspaceHash('#receipts'), { view: 'projects' });
+  assert.deepEqual(parseWorkspaceHash('#projects/%bad'), { view: 'projects' });
+});
+
+void test('真实路径路由：项目、归档与基础设置可复制并规范化', () => {
+  assert.deepEqual(parseWorkspaceLocation('/', ''), { view: 'projects' });
+  assert.deepEqual(parseWorkspaceLocation('/projects', ''), {
+    view: 'projects',
+  });
+  assert.deepEqual(parseWorkspaceLocation('/projects', '?scope=history'), {
+    view: 'history',
+  });
+  assert.deepEqual(parseWorkspaceLocation('/projects/new', ''), {
+    view: 'projects',
+    newProject: true,
+  });
+  assert.deepEqual(parseWorkspaceLocation('/projects', '?tool=import'), {
+    view: 'projects',
+    importing: true,
+  });
+  assert.deepEqual(parseWorkspaceLocation('/projects/p', ''), {
+    view: 'projects',
+    projectId: 'p',
+    section: 'overview',
+  });
+  assert.deepEqual(
+    parseWorkspaceLocation('/projects/%E6%B5%8B%E8%AF%95/receipts', '?node=r'),
+    {
+      view: 'projects',
+      projectId: '测试',
+      section: 'receipts',
+      receivableId: 'r',
+    },
+  );
+  assert.deepEqual(parseWorkspaceLocation('/settings', ''), {
+    view: 'account',
+  });
+  assert.equal(
+    workspaceUrl({
+      view: 'projects',
+      projectId: '测试',
+      section: 'receipts',
+      receivableId: 'r',
+    }),
+    '/projects/%E6%B5%8B%E8%AF%95/receipts?node=r',
+  );
+  assert.equal(
+    workspaceUrl({ view: 'projects', projectId: 'p', section: 'overview' }),
+    '/projects/p',
+  );
+  assert.equal(workspaceUrl({ view: 'history' }), '/projects?scope=history');
+  assert.equal(
+    workspaceUrl({ view: 'projects', importing: true }),
+    '/projects?tool=import',
+  );
+  assert.equal(workspaceUrl({ view: 'account' }), '/settings');
+});
+
+void test('真实路径路由：畸形、越界和编码分隔符不会变成业务页面', () => {
+  for (const pathname of [
+    '/projects/%bad',
+    '/projects/a%2Fb',
+    '/projects/a%5Cb',
+    '/projects/p/unknown',
+    '/projects/p/receipts/extra',
+    '/manage/receipts',
+    '/manage/dashboard',
+    '/unknown',
+  ])
+    assert.equal(parseWorkspaceLocation(pathname, '').notFound, true, pathname);
+});
+
+void test('旧 hash 只从根路径迁移，已存在的真实路径始终优先', () => {
+  assert.deepEqual(legacyWorkspaceRoute('/', '#dashboard'), {
+    view: 'dashboard',
+  });
+  assert.equal(legacyWorkspaceRoute('/', '#receipts'), null);
+  assert.deepEqual(
+    legacyWorkspaceRoute('/', '#projects/p/collections?node=r'),
+    {
+      view: 'projects',
+      projectId: 'p',
+      section: 'collections',
+      receivableId: 'r',
+    },
+  );
+  assert.equal(legacyWorkspaceRoute('/projects', '#receipts'), null);
+  assert.equal(legacyWorkspaceRoute('/', '#unknown'), null);
+  assert.equal(legacyWorkspaceRoute('/', '#main-content'), null);
+});
+
+void test('自托管文档路径白名单：只允许真实应用深链接回退到 index', () => {
+  for (const pathname of [
+    '/',
+    '/projects',
+    '/projects/new',
+    '/projects/p',
+    '/projects/p/receipts',
+    '/settings',
+  ])
+    assert.equal(isWorkspaceDocumentPath(pathname), true, pathname);
+  for (const pathname of [
+    '/api',
+    '/api/bootstrap',
+    '/assets/missing.js',
+    '/.env',
+    '/unknown',
+    '/projects/p/unknown',
+    '/projects/a%2Fb',
+    '/projects/p/receipts/extra',
+  ])
+    assert.equal(isWorkspaceDocumentPath(pathname), false, pathname);
+});
+
+void test('项目索引未选择项目时只展示索引，不预先占用业务工作区', () => {
+  const data = fixture([node()]);
+  const html = renderToStaticMarkup(
+    createElement(ProjectDirectory, {
+      data,
+      models: buildPortfolio(data),
+      onOpen: () => undefined,
+      onNew: () => undefined,
+      onImport: () => undefined,
+      onArchiveChange: () => undefined,
+    }),
+  );
+  assert.match(html, /aria-label="项目索引"/);
+  assert.match(html, /需要处理|进行中/);
+  assert.doesNotMatch(html, /当前业务路径/);
+  assert.doesNotMatch(html, /关闭项目工作区/);
+});
+void test('项目索引选择项目后只展开当前路径，并且只标记一个当前任务', () => {
+  const data = fixture([node()]);
+  const html = renderToStaticMarkup(
+    createElement(ProjectIndex, {
+      models: buildPortfolio(data),
+      selectedId: 'p',
+      onSelect: () => undefined,
+      onOpen: () => undefined,
+    }),
+  );
+  assert.match(html, /当前业务路径/);
+  assert.match(html, /data-state="current"/);
+  assert.equal((html.match(/data-state="current"/g) ?? []).length, 1);
+  assert.doesNotMatch(html, /完整详情/);
 });
 void test('上下文操作：缺失节点、跨项目节点或已结清节点绝不回退到其他记录', () => {
   const rows = [node(), node({ id: 'other', projectId: 'otherProject' })];
@@ -360,7 +508,7 @@ void test('审计按实体类型关联，不能通过恰巧相同的ID混入其�
   assert.equal(buildPortfolio(data)[0].audits.length, 0);
 });
 
-void test('项目工作台真实组件渲染：所有工作区保留项目名称与下一步，填报人无确认按钮', () => {
+void test('项目概览把付款节点收敛为横向任务链，复杂资料不默认展开', () => {
   const data = fixture([
     node({ confirmationStatus: 'DRAFT', overdueDays: 0, riskLevel: 'NONE' }),
   ]);
@@ -368,36 +516,34 @@ void test('项目工作台真实组件渲染：所有工作区保留项目名称
   data.session.districtId = 'd';
   const model = buildPortfolio(data)[0];
   const noop = () => {};
-  for (const section of Object.keys(PROJECT_SECTIONS) as ProjectSection[]) {
-    const html = renderToStaticMarkup(
-      createElement(ProjectWorkspace, {
-        model,
-        data,
-        section,
-        today,
-        confirmingId: null,
-        onBack: noop,
-        onSection: noop,
-        onDone: async () => {},
-        operations: {
-          onNode: noop,
-          onConfirm: noop,
-          onReceipt: noop,
-          onCollection: noop,
-          onCorrectReceipt: noop,
-          onCorrectCollection: noop,
-        },
-      }),
-    );
-    assert.match(html, /测试项目/);
-    assert.match(html, /查看待确认节点/);
-    assert.doesNotMatch(html, />确认应收<\/button>/);
-    assert.equal((html.match(/role="tab"/g) ?? []).length, 3);
-    assert.equal(
-      (html.match(/role="tab"[^>]*aria-selected="true"/g) ?? []).length,
-      1,
-    );
-  }
+  const html = renderToStaticMarkup(
+    createElement(ProjectWorkspace, {
+      model,
+      data,
+      section: 'overview',
+      today,
+      confirmingId: null,
+      onBack: noop,
+      onSection: noop,
+      onDone: async () => {},
+      operations: {
+        onNode: noop,
+        onConfirm: noop,
+        onReceipt: noop,
+        onCollection: noop,
+        onCorrectReceipt: noop,
+        onCorrectCollection: noop,
+      },
+    }),
+  );
+  assert.match(html, /测试项目/);
+  assert.match(html, /付款节点任务链/);
+  assert.match(html, /data-task-card/);
+  assert.match(html, /将鼠标悬停在节点上查看摘要，点击进入处理页。/);
+  assert.doesNotMatch(html, /全部动态/);
+  assert.doesNotMatch(html, /回款、催收与更正记录/);
+  assert.doesNotMatch(html, />确认应收<\/button>/);
+  assert.equal((html.match(/role="tab"/g) ?? []).length, 0);
   const cockpit = renderToStaticMarkup(
     createElement(BusinessCockpit, {
       data,
@@ -408,10 +554,50 @@ void test('项目工作台真实组件渲染：所有工作区保留项目名称
       onProjects: noop,
     }),
   );
-  assert.match(cockpit, /现在最需要处理/);
-  assert.match(cockpit, /回款登记后自动核销/);
-  assert.match(cockpit, /项目概览/);
-  assert.equal((cockpit.match(/role="tab"/g) ?? []).length, 2);
+  assert.match(cockpit, /今天要处理什么/);
+  assert.match(cockpit, /先看这三项/);
+  assert.match(cockpit, /继续处理/);
+  assert.doesNotMatch(cockpit, /项目概览/);
+  assert.doesNotMatch(cockpit, /按待办类型筛选/);
+  assert.equal((cockpit.match(/role="tab"/g) ?? []).length, 0);
+});
+
+void test('点击任务节点进入详情页，详情页提供回款、催收与动态', () => {
+  const data = fixture([
+    node({
+      overdueDays: 0,
+      riskLevel: 'NONE',
+      confirmationStatus: 'CONFIRMED',
+    }),
+    node({ id: 'overdue', sequenceNo: 2, overdueDays: 31 }),
+  ]);
+  const model = buildPortfolio(data)[0];
+  const noop = () => {};
+  const html = renderToStaticMarkup(
+    createElement(ProjectWorkspace, {
+      model,
+      data,
+      section: 'receivables',
+      focusedNodeId: 'overdue',
+      today,
+      confirmingId: null,
+      onBack: noop,
+      onSection: noop,
+      onDone: async () => {},
+      operations: {
+        onNode: noop,
+        onConfirm: noop,
+        onReceipt: noop,
+        onCollection: noop,
+        onCorrectReceipt: noop,
+        onCorrectCollection: noop,
+      },
+    }),
+  );
+  assert.match(html, /第 2 节点/);
+  assert.match(html, /登记催收/);
+  assert.match(html, /此节点动态/);
+  assert.match(html, /回款、催收与更正记录/);
 });
 
 void test('精简导航覆盖全部旧工作区且不改变项目深链接', () => {
@@ -431,7 +617,11 @@ void test('精简导航覆盖全部旧工作区且不改变项目深链接', () 
   }
 });
 
-void test('玻璃导航在桌面与移动端保留四个业务入口及唯一当前分组', () => {
+void test('主导航只保留项目总览与设置，单项目由总览承接', () => {
+  assert.deepEqual(
+    NAV_GROUPS.map((group) => group.label),
+    ['项目总览', '设置'],
+  );
   for (const group of NAV_GROUPS) {
     for (const view of group.views) {
       for (const mobile of [false, true]) {
@@ -444,13 +634,10 @@ void test('玻璃导航在桌面与移动端保留四个业务入口及唯一当
         );
         assert.match(html, /class="[^"]*app-glass/);
         assert.match(html, /aria-label="主导航"/);
-        assert.equal(
-          (html.match(/<button\b/g) ?? []).length,
-          NAV_GROUPS.length,
-        );
+        assert.equal((html.match(/<a\b/g) ?? []).length, NAV_GROUPS.length);
         assert.equal((html.match(/aria-current="page"/g) ?? []).length, 1);
         const active = html.match(
-          /<button[^>]*data-active="true"[^>]*>([\s\S]*?)<\/button>/,
+          /<a[^>]*data-active="true"[^>]*>([\s\S]*?)<\/a>/,
         );
         assert.ok(active);
         assert.ok(active[1].includes(`<span>${group.label}</span>`));

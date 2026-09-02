@@ -64,16 +64,20 @@ export function ProjectReceipts({
   model,
   session,
   focusedNodeId,
+  nodeId,
   onReceipt,
   onCorrect,
 }: {
   model: ProjectModel;
   session: DemoSession;
   focusedNodeId?: string;
+  nodeId?: string;
   onReceipt: (id: string) => void;
   onCorrect: (row: ReceiptRecord) => void;
 }) {
-  const nodes = model.nodes.toSorted(
+  const nodes = model.nodes
+    .filter((node) => !nodeId || node.id === nodeId)
+    .toSorted(
     (a, b) =>
       Number(b.id === focusedNodeId) - Number(a.id === focusedNodeId) ||
       a.sequenceNo - b.sequenceNo,

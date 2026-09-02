@@ -8,6 +8,7 @@ import {
   webBindHost,
 } from '../api/src/config';
 import { BusinessError, routeError } from '../../lib/server/api';
+import { isWorkspaceDocumentPath } from '../../lib/project-navigation';
 
 const webRoot = await realpath(
   resolve(process.env.RECEIVABLES_BUILD_DIR || '.selfhost-build', 'web'),
@@ -33,7 +34,7 @@ const server = createFetchServer(
     let response: Response;
     try {
       const url = new URL(request.url);
-      if (url.pathname.startsWith('/api/')) {
+      if (url.pathname === '/api' || url.pathname.startsWith('/api/')) {
         // Forward an explicit allowlist. Public x-forwarded/oai/role/proxy headers are never trusted.
         const headers = new Headers({
           'x-receivables-gateway': token,
@@ -70,15 +71,21 @@ const server = createFetchServer(
             405,
           );
         const path = decodeURIComponent(url.pathname);
-        const relative = path === '/' ? 'index.html' : path.slice(1);
+        let relative = path === '/' ? 'index.html' : path.slice(1);
         if (
           relative
             .split('/')
             .some(
               (segment) => segment.startsWith('.') || segment.includes('\\'),
-            ) ||
-          !types[extname(relative)]
+            )
         )
+          throw new BusinessError('NOT_FOUND', '页面不存在', 404);
+        if (!extname(relative)) {
+          if (!isWorkspaceDocumentPath(url.pathname))
+            throw new BusinessError('NOT_FOUND', '页面不存在', 404);
+          relative = 'index.html';
+        }
+        if (!types[extname(relative)])
           throw new BusinessError('NOT_FOUND', '页面不存在', 404);
         let target: string;
         try {
@@ -88,7 +95,11 @@ const server = createFetchServer(
         }
         if (!target.startsWith(webRoot + sep) || !(await stat(target)).isFile())
           throw new BusinessError('NOT_FOUND', '页面不存在', 404);
-        response = new Response(new Uint8Array(await readFile(target)), {
+        const body =
+          request.method === 'HEAD'
+            ? null
+            : new Uint8Array(await readFile(target));
+        response = new Response(body, {
           headers: {
             'Content-Type': types[extname(target)],
             'Cache-Control': relative.startsWith('assets/')

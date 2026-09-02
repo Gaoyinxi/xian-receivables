@@ -102,7 +102,7 @@ export function ApplicationHeader({
   );
   const project = data.projects.find((item) => item.id === route.projectId);
   return (
-    <header className="app-topbar app-glass sticky z-20 flex min-h-14 items-center px-4 md:px-7">
+    <header className="app-topbar sticky z-20 flex min-h-14 items-center px-4 md:px-7">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <div className="grid size-9 shrink-0 place-items-center rounded-[11px] bg-primary text-white shadow-sm lg:hidden">
           <CircleDollarSign className="size-5" />

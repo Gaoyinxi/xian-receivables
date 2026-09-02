@@ -153,13 +153,13 @@ function eventsForNode(
 function TaskTree({
   model,
   node,
-  expandedTaskId,
+  expandedTaskIds,
   onExpand,
   onAction,
 }: {
   model: ProjectModel;
   node: ProjectModel['nodes'][number];
-  expandedTaskId: string | null;
+  expandedTaskIds: Set<string>;
   onExpand: (taskId: string) => void;
   onAction?: ProjectAction;
 }) {
@@ -167,7 +167,7 @@ function TaskTree({
     <ol className="lc-task-tree" aria-label={`${node.paymentType}业务事件`}>
       {eventsForNode(model, node).map((event) => {
         const taskId = `${node.id}:${event.id}`;
-        const expanded = expandedTaskId === taskId;
+        const expanded = expandedTaskIds.has(taskId);
         return (
           <li key={taskId} data-state={event.state} data-expanded={expanded}>
             <button
@@ -486,7 +486,9 @@ function ProjectPath({
   onDone?: (message: string) => Promise<void>;
 }) {
   const [showAll, setShowAll] = useState(false);
-  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  const [expandedTaskIds, setExpandedTaskIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [resourcesOpen, setResourcesOpen] = useState(false);
   const currentNode =
     model.nodes.find((node) => node.id === model.next.receivableId) ??
@@ -537,8 +539,7 @@ function ProjectPath({
             type="button"
             className="lc-focus-toggle"
             onClick={() => {
-          setShowAll(!showAll);
-          setExpandedTaskId(null);
+              setShowAll(!showAll);
             }}
           >
             {showAll ? '只看当前路径' : '显示全部节点'}
@@ -601,9 +602,14 @@ function ProjectPath({
                 <TaskTree
                   model={model}
                   node={node}
-                  expandedTaskId={expandedTaskId}
+                  expandedTaskIds={expandedTaskIds}
                   onExpand={(id) =>
-                    setExpandedTaskId(expandedTaskId === id ? null : id)
+                    setExpandedTaskIds((current) => {
+                      const next = new Set(current);
+                      if (next.has(id)) next.delete(id);
+                      else next.add(id);
+                      return next;
+                    })
                   }
                   onAction={onAction}
                 />
@@ -629,7 +635,6 @@ function ProjectPath({
           className="lc-show-all-nodes"
           onClick={() => {
             setShowAll(!showAll);
-            setExpandedTaskId(null);
           }}
         >
           <ChevronDown

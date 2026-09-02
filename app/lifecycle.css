@@ -148,53 +148,6 @@
 .lc-approved-sidebar-nav .app-sidebar-link[data-active='true'] {
   box-shadow: inset 2px 0 #4f6f9f;
 }
-.lc-recent-projects {
-  display: grid;
-  gap: 0.125rem;
-  padding: 0.75rem;
-  margin-top: 0.25rem;
-  border-top: 1px solid #e7e7e3;
-}
-.lc-recent-projects > span {
-  padding: 0 0.625rem 0.35rem;
-  color: #92928d;
-  font-size: 0.5625rem;
-}
-.lc-recent-projects button {
-  display: grid;
-  grid-template-columns: 0.5rem minmax(0, 1fr);
-  align-items: center;
-  gap: 0.5rem;
-  min-height: 2.375rem;
-  padding: 0.4rem 0.625rem;
-  border: 0;
-  border-radius: 0.5625rem;
-  color: #4a4a47;
-  background: transparent;
-  text-align: left;
-}
-.lc-recent-projects button:hover {
-  background: #ecece8;
-}
-.lc-recent-projects i {
-  width: 0.375rem;
-  height: 0.375rem;
-  border-radius: 50%;
-  background: #8ca39a;
-}
-.lc-recent-projects button:nth-of-type(2) i {
-  background: #bb8a3b;
-}
-.lc-recent-projects button:nth-of-type(3) i {
-  background: #a3a5a3;
-}
-.lc-recent-projects strong {
-  overflow: hidden;
-  font-size: 0.6875rem;
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .lc-sidebar-profile {
   display: grid;
   grid-template-columns: 1.875rem minmax(0, 1fr);
@@ -2089,7 +2042,6 @@
 }
 .app-sidebar-link,
 .lc-sidebar-new,
-.lc-recent-projects button,
 [data-slot='button'] {
   transition:
     color var(--motion-fast) ease,
@@ -2101,7 +2053,6 @@
 }
 .app-sidebar-link:active,
 .lc-sidebar-new:active,
-.lc-recent-projects button:active,
 [data-slot='button']:active:not(:disabled) {
   transform: scale(0.98);
 }
@@ -3251,5 +3202,400 @@ html[data-motion='reduced'] *::after {
     align-items: flex-start;
     flex-direction: column;
     gap: 0.75rem;
+  }
+}
+
+/* Detail pages: one consistent type scale and a small set of purposeful cards. */
+.lc-node-workspace,
+.lc-project-overview {
+  --detail-xs: 0.625rem;
+  --detail-sm: 0.6875rem;
+  --detail-md: 0.8125rem;
+  --detail-lg: 1rem;
+}
+.lc-node-workspace h1,
+.lc-project-overview h1 {
+  font-size: clamp(1.25rem, 2vw, 1.5rem);
+  line-height: 1.3;
+}
+.lc-node-workspace h2,
+.lc-project-overview h2 {
+  font-size: var(--detail-lg);
+  line-height: 1.4;
+}
+.lc-node-workspace h3,
+.lc-project-overview h3 {
+  font-size: var(--detail-md);
+  line-height: 1.5;
+}
+.lc-node-workspace p,
+.lc-project-overview p {
+  font-size: var(--detail-sm);
+  line-height: 1.65;
+}
+.lc-node-page-totals {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.625rem;
+  margin-top: 1.125rem;
+}
+.lc-node-page-totals > div {
+  padding: 0.75rem 0.875rem;
+  border: 1px solid var(--app-border);
+  border-radius: 0.75rem;
+  background: var(--app-surface-subtle);
+  transition:
+    border-color var(--motion-fast) ease,
+    background var(--motion-fast) ease,
+    transform var(--motion-fast) var(--motion-enter);
+}
+.lc-node-page-totals > div:hover {
+  border-color: var(--app-border-strong);
+  background: #fff;
+  transform: translateY(-2px);
+}
+.lc-node-page-totals dt {
+  color: var(--app-text-soft);
+  font-size: var(--detail-xs);
+}
+.lc-node-page-totals dd {
+  margin-top: 0.3rem;
+  color: var(--app-text-strong);
+  font-size: 0.9375rem;
+  font-weight: 650;
+}
+.lc-node-context-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+.lc-context-card {
+  position: relative;
+  min-height: 5.25rem;
+  padding: 0.875rem 1rem;
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  border-radius: 0.875rem;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(20 25 33 / 3%);
+  transition:
+    border-color var(--motion-fast) ease,
+    box-shadow var(--motion-standard) var(--motion-enter),
+    transform var(--motion-standard) var(--motion-enter);
+}
+.lc-context-card::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--app-border-strong);
+  content: '';
+}
+.lc-context-card--date::before {
+  background: #4f6f9f;
+}
+.lc-context-card--status::before {
+  background: #5f7f66;
+}
+.lc-context-card--risk::before {
+  background: #c96b42;
+}
+.lc-context-card:hover {
+  border-color: var(--app-border-strong);
+  box-shadow: 0 8px 24px rgb(20 25 33 / 7%);
+  transform: translateY(-2px);
+}
+.lc-context-label,
+.lc-context-card strong,
+.lc-context-card small {
+  display: block;
+}
+.lc-context-label {
+  color: var(--app-text-soft);
+  font-size: var(--detail-xs);
+}
+.lc-context-card strong {
+  margin-top: 0.35rem;
+  color: var(--app-text-strong);
+  font-size: var(--detail-md);
+  font-weight: 650;
+}
+.lc-context-card small {
+  margin-top: 0.25rem;
+  color: var(--app-text-soft);
+  font-size: var(--detail-xs);
+}
+.lc-node-detail {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+}
+.lc-node-detail > .lc-section,
+.lc-node-detail > .lc-flow-details {
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--app-border);
+  border-radius: 0.875rem;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(20 25 33 / 2%);
+  overflow: clip;
+}
+.lc-node-detail > .lc-flow-details > summary {
+  min-height: 3.125rem;
+  font-size: var(--detail-md);
+}
+.lc-node-detail .lc-section-heading {
+  padding: 0.875rem 1rem;
+}
+.lc-node-detail .lc-section-heading p {
+  max-width: 50rem;
+  font-size: var(--detail-sm);
+}
+.lc-node-row {
+  padding: 1rem;
+}
+.lc-node-main {
+  gap: 0.875rem;
+}
+.lc-node-main strong {
+  font-size: var(--detail-md);
+}
+.lc-node-main p {
+  font-size: var(--detail-xs);
+}
+.lc-node-facts,
+.lc-contract-facts,
+.lc-risk-facts {
+  gap: 0.625rem;
+}
+.lc-node-facts > div,
+.lc-contract-facts > div,
+.lc-risk-facts > div {
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--app-border);
+  border-radius: 0.625rem;
+  background: var(--app-surface-subtle);
+}
+.lc-node-facts dt,
+.lc-contract-facts dt,
+.lc-risk-facts dt {
+  margin-bottom: 0.25rem;
+  color: var(--app-text-soft);
+  font-size: var(--detail-xs);
+}
+.lc-node-facts dd,
+.lc-contract-facts dd,
+.lc-risk-facts dd {
+  font-size: var(--detail-sm);
+  line-height: 1.55;
+}
+.lc-project-timeline li {
+  padding: 0.75rem 0;
+}
+.lc-project-timeline time {
+  font-size: var(--detail-xs);
+}
+.lc-project-timeline h3 {
+  font-size: var(--detail-sm);
+}
+.lc-project-timeline p {
+  font-size: var(--detail-xs);
+}
+.lc-receipt-flow,
+.lc-collection-list,
+.lc-audit-list {
+  font-size: var(--detail-sm);
+}
+.lc-receipt-flow li,
+.lc-collection-list li {
+  padding: 0.75rem 1rem;
+}
+.lc-receipt-flow li strong {
+  font-size: var(--detail-md);
+}
+.lc-receipt-flow li span,
+.lc-receipt-flow li p,
+.lc-collection-list time,
+.lc-collection-list p {
+  font-size: var(--detail-xs);
+}
+.lc-money-rows {
+  gap: 0.75rem;
+}
+.lc-money-row {
+  padding: 0.75rem;
+  border: 1px solid var(--app-border);
+  border-radius: 0.75rem;
+  background: var(--app-surface-subtle);
+}
+.lc-money-row > div {
+  font-size: var(--detail-sm);
+}
+.lc-money-row strong {
+  font-size: var(--detail-md);
+}
+.lc-money-row p {
+  font-size: var(--detail-xs);
+}
+@media (max-width: 800px) {
+  .lc-node-page-totals,
+  .lc-node-context-grid {
+    grid-template-columns: 1fr;
+  }
+  .lc-node-page-totals > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  .lc-context-card {
+    min-height: 4.5rem;
+  }
+}
+
+/* Keep the primary workspace quiet: headings carry the meaning, details stay
+   available inside the focused project and task views. */
+.lc-section-heading > div > p,
+.lc-approved-directory-head > .lc-approved-title-row p {
+  display: none;
+}
+
+/* The project index is a full-height workspace at every viewport size. Only
+   its panes scroll, so the shell itself never jumps while selecting a project. */
+.app-shell[data-view='projects'] {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.app-shell[data-view='projects'] .app-workspace-body {
+  display: flex;
+  height: 100dvh;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.app-shell[data-view='projects'] .app-main {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.app-shell[data-view='projects'] .lc-project-directory {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.app-shell[data-view='projects'] .lc-project-index {
+  min-height: 0;
+  flex: 1;
+}
+
+.app-shell[data-view='projects'] .lc-project-index-list,
+.app-shell[data-view='projects'] .lc-project-path {
+  min-height: 0;
+}
+
+.app-shell[data-view='projects'] .lc-project-path {
+  overflow: auto;
+}
+
+.app-shell[data-view='projects'] .lc-project-index-time {
+  display: block;
+  margin-top: 0.125rem;
+  color: var(--app-text-soft);
+  font-size: 0.625rem;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Project overview owns the full content rail; do not center each band as a
+   separate max-width island on wide screens. */
+.app-shell[data-view='projects'] .lc-approved-directory-head,
+.app-shell[data-view='projects'] .lc-project-directory > .lc-project-summary-filters,
+.app-shell[data-view='projects'] .lc-directory-toolbar,
+.app-shell[data-view='projects'] .lc-project-index {
+  width: 100%;
+  max-width: none;
+  margin-inline: 0;
+}
+
+/* Motion accents: short, purposeful feedback for selection and progression. */
+.lc-project-index-row,
+.lc-task-card,
+.lc-task-tree-row {
+  will-change: transform;
+}
+
+.lc-project-index-row {
+  transition:
+    background-color var(--motion-fast) ease,
+    box-shadow var(--motion-standard) var(--motion-enter),
+    transform var(--motion-standard) var(--motion-enter);
+}
+
+.lc-project-index-row[data-selected='true'] {
+  animation: index-selection-settle 360ms var(--motion-enter) both;
+}
+
+@keyframes index-selection-settle {
+  from {
+    opacity: 0.7;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.lc-task-card {
+  transition:
+    border-color var(--motion-fast) ease,
+    background-color var(--motion-fast) ease,
+    box-shadow var(--motion-standard) var(--motion-enter),
+    transform var(--motion-standard) var(--motion-enter);
+}
+
+.lc-task-card:hover,
+.lc-task-card:focus-visible {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px rgb(22 40 66 / 11%);
+}
+
+.lc-task-rail-item[data-current='true'] .lc-task-card {
+  animation: task-current-breathe 2.8s ease-in-out infinite;
+}
+
+@keyframes task-current-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(79 111 159 / 0%);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgb(79 111 159 / 8%);
+  }
+}
+
+.lc-task-tree-row {
+  transition:
+    background-color var(--motion-fast) ease,
+    transform var(--motion-fast) var(--motion-enter);
+}
+
+.lc-task-tree-row:hover,
+.lc-task-tree-row:focus-visible {
+  transform: translateX(3px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lc-project-index-row[data-selected='true'],
+  .lc-task-rail-item[data-current='true'] .lc-task-card {
+    animation: none;
   }
 }

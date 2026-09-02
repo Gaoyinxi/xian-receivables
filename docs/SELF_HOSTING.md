@@ -34,6 +34,18 @@ apps/web-server  网页网关 127.0.0.1:4173
 
 前后端独立构建：`npm run web:build`、`npm run api:build`。网关构建：`npm run gateway:build`。统一构建：`npm run selfhost:build`。输出分别在 `.selfhost-build/web`、`api`、`gateway`。
 
+## 运行原理
+
+日常浏览器只访问 `4173`，不会直接连接数据库：
+
+1. `selfhost:build` 分别编译 React 前端、Node API 和网页网关。
+2. `selfhost:start` 由一个本机启动器拉起 API（`127.0.0.1:4174`）和网关（`127.0.0.1:4173`），并为两者生成一次性的内部网关密钥。
+3. 网关提供静态前端，并把 `/api/*` 请求转发给 API；API 校验内部密钥后执行登录、权限、业务事务和附件读写。
+4. API 只访问 `.data/selfhost/receivables.sqlite` 与 `.data/selfhost/files/`，数据库没有公网端口。
+5. 使用 `selfhost:public` 时，Cloudflare 临时隧道只连接到 `4173`，因此公网仍然经过同一套网关和 API 校验。
+
+因此，关闭启动终端会停止服务，但不会删除数据库、附件或备份。
+
 SQL 金额仍按分保存；创建、更正、汇总、归档、审计在同一个 `BEGIN IMMEDIATE` 事务中执行。异常整批回滚，没有把财务流程改成 JavaScript 先查后写。自托管用户 ID 稳定，不因登录会话轮换而改变导入归属。
 
 ## 启动与停止
@@ -102,6 +114,17 @@ npm run selfhost:backup
 ```
 
 等待服务停止后执行备份；如果 API 仍在运行，备份会拒绝执行。输出目录包含一致性 SQLite 快照、该快照引用的附件、完整性检查和 SHA-256 清单。失败的备份不会删除原始数据。
+
+### 运行数据清理
+
+自托管服务停止后，可以预览并清理旧备份，默认保留最近 3 份：
+
+```bash
+npm run selfhost:cleanup
+npm run selfhost:cleanup -- --apply --keep=3
+```
+
+清理命令只处理 `.data/selfhost/backups/` 中的旧备份，不会删除当前数据库、附件或 `.selfhost` 切换核验记录。也可以通过 `RECEIVABLES_DATA_DIR` 指定其他数据目录。
 
 恢复到**新的空目录**，不会覆盖原数据库：
 

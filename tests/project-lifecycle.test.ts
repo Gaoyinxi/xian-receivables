@@ -452,6 +452,7 @@ void test('项目索引选择项目后只展开当前路径，并且只标记一
     }),
   );
   assert.match(html, /当前业务路径/);
+  assert.match(html, /节点日期 2026-08-01/);
   assert.match(html, /data-state="current"/);
   assert.equal((html.match(/data-state="current"/g) ?? []).length, 1);
   assert.doesNotMatch(html, /完整详情/);
@@ -539,7 +540,7 @@ void test('项目概览把付款节点收敛为横向任务链，复杂资料不
   assert.match(html, /测试项目/);
   assert.match(html, /付款节点任务链/);
   assert.match(html, /data-task-card/);
-  assert.match(html, /将鼠标悬停在节点上查看摘要，点击进入处理页。/);
+  assert.doesNotMatch(html, /将鼠标悬停在节点上查看摘要，点击进入处理页。/);
   assert.doesNotMatch(html, /全部动态/);
   assert.doesNotMatch(html, /回款、催收与更正记录/);
   assert.doesNotMatch(html, />确认应收<\/button>/);

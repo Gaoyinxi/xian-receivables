@@ -25,6 +25,7 @@
     "selfhost:users": "node .selfhost-build/api/admin.mjs",
     "selfhost:backup": "node .selfhost-build/api/backup.mjs backup",
     "selfhost:restore": "node .selfhost-build/api/backup.mjs restore",
+    "selfhost:cleanup": "node scripts/cleanup-selfhost.mjs",
     "selfhost:start": "node scripts/selfhost.mjs",
     "selfhost:public": "node scripts/selfhost.mjs --public",
     "selfhost:stop": "node scripts/selfhost.mjs --stop",

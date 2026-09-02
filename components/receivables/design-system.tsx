@@ -111,7 +111,7 @@ export function PageHeading({
         <h1 className="text-[clamp(1.35rem,2vw,1.65rem)] font-semibold leading-tight tracking-[-0.025em] text-[var(--app-text-strong)]">
           {title}
         </h1>
-        <p className="mt-1.5 max-w-3xl text-sm leading-6 text-muted-foreground">
+        <p className="sr-only">
           {description}
         </p>
       </div>
@@ -170,7 +170,7 @@ export function DataPanel({
             {title}
           </CardTitle>
           {description ? (
-            <CardDescription className="text-xs">{description}</CardDescription>
+            <CardDescription className="sr-only">{description}</CardDescription>
           ) : null}
           {actions ? (
             <CardAction className="app-panel-actions">{actions}</CardAction>

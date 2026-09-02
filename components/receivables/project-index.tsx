@@ -49,6 +49,14 @@ function stateGroup(model: ProjectModel): StateGroupId {
   return 'active';
 }
 
+function projectNodeDate(model: ProjectModel) {
+  const nextNode =
+    model.nodes.find((node) => node.id === model.next.receivableId) ??
+    model.nodes.find((node) => node.remainingAmountCents > 0) ??
+    model.nodes.at(-1);
+  return nextNode?.dueDate ?? model.lastActivity.slice(0, 10);
+}
+
 function eventsForNode(
   model: ProjectModel,
   node: ProjectModel['nodes'][number],
@@ -627,9 +635,37 @@ export function ProjectIndex({
       }).filter((group) => group.rows.length),
     [models],
   );
-  const [expandedGroup, setExpandedGroup] = useState<StateGroupId>('attention');
-  const [expandedDistrict, setExpandedDistrict] = useState<string | null>(null);
-  const hasAttention = groups.some((group) => group.id === 'attention');
+  const [expandedGroups, setExpandedGroups] = useState<Set<StateGroupId>>(
+    () =>
+      new Set<StateGroupId>([
+        groups.find((group) => group.id === 'attention')?.id ?? groups[0]?.id,
+      ].filter((id): id is StateGroupId => Boolean(id))),
+  );
+  const [expandedDistricts, setExpandedDistricts] = useState<Set<string>>(
+    () =>
+      new Set(
+        groups.flatMap((group) =>
+          group.districts.map(([districtName]) => `${group.id}:${districtName}`),
+        ),
+      ),
+  );
+
+  const toggleGroup = (groupId: StateGroupId) => {
+    setExpandedGroups((current) => {
+      const next = new Set(current);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  };
+  const toggleDistrict = (districtId: string) => {
+    setExpandedDistricts((current) => {
+      const next = new Set(current);
+      if (next.has(districtId)) next.delete(districtId);
+      else next.add(districtId);
+      return next;
+    });
+  };
 
   return (
     <section
@@ -643,14 +679,7 @@ export function ProjectIndex({
           aria-label="按业务状态与区县分组的项目列表"
         >
           {groups.map((group) => {
-            const selectedInGroup =
-              selected && stateGroup(selected) === group.id;
-            const isOpen =
-              selectedInGroup ||
-              expandedGroup === group.id ||
-              (!hasAttention &&
-                expandedGroup === 'attention' &&
-                group.id === groups[0]?.id);
+            const isOpen = expandedGroups.has(group.id);
             return (
               <li
                 className="lc-state-group"
@@ -662,7 +691,7 @@ export function ProjectIndex({
                   type="button"
                   className="lc-state-toggle"
                   aria-expanded={isOpen}
-                  onClick={() => setExpandedGroup(group.id)}
+                  onClick={() => toggleGroup(group.id)}
                 >
                   <ChevronDown aria-hidden="true" className="size-4" />
                   <span className="lc-state-dot" aria-hidden="true" />
@@ -673,10 +702,8 @@ export function ProjectIndex({
                 {isOpen && (
                   <ul className="lc-district-tree">
                     {group.districts.map(([districtName, rows]) => {
-                      const shouldOpen =
-                        selected?.project.districtName === districtName ||
-                        expandedDistrict === `${group.id}:${districtName}` ||
-                        rows.length === 1;
+                      const districtId = `${group.id}:${districtName}`;
+                      const shouldOpen = expandedDistricts.has(districtId);
                       return (
                         <li
                           className="lc-district-group"
@@ -687,13 +714,7 @@ export function ProjectIndex({
                             type="button"
                             className="lc-district-toggle"
                             aria-expanded={shouldOpen}
-                            onClick={() =>
-                              setExpandedDistrict(
-                                shouldOpen
-                                  ? null
-                                  : `${group.id}:${districtName}`,
-                              )
-                            }
+                            onClick={() => toggleDistrict(districtId)}
                           >
                             <ChevronDown
                               aria-hidden="true"
@@ -716,10 +737,6 @@ export function ProjectIndex({
                                       data-selected={isSelected}
                                       aria-pressed={isSelected}
                                       onClick={() => {
-                                        setExpandedGroup(group.id);
-                                        setExpandedDistrict(
-                                          `${group.id}:${districtName}`,
-                                        );
                                         onSelect(
                                           isSelected ? '' : model.project.id,
                                         );
@@ -735,6 +752,12 @@ export function ProjectIndex({
                                           {model.project.contractCode} ·{' '}
                                           {model.next.label}
                                         </small>
+                                        <time
+                                          className="lc-project-index-time"
+                                          dateTime={projectNodeDate(model)}
+                                        >
+                                          节点日期 {projectNodeDate(model)}
+                                        </time>
                                       </span>
                                       <span className="lc-project-index-amount">
                                         <b>{money(model.remaining)}</b>

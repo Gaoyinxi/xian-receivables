@@ -22,6 +22,24 @@ npm run selfhost:start
 
 访问 `http://127.0.0.1:4173/`。初始管理员为 `admin`，随机密码写入命令输出的本机文件（权限 0600、Git 忽略），首次登录必须改密。初始化可重复执行，不覆盖已有账号或业务数据。
 
+### 日常手动启动（当前电脑）
+
+每次重启电脑或服务退出后，在项目目录执行：
+
+```bash
+cd '/Users/yinxigao/Documents/ChatGPT/Tele 贷款催收项目'
+npm run selfhost:start
+```
+
+如果刚修改过前端或后端代码，先重新生成自托管构建：
+
+```bash
+npm run selfhost:build
+npm run selfhost:start
+```
+
+启动命令所在终端需要保持打开；浏览器访问 `http://127.0.0.1:4173/`。停止时在另一个终端执行 `npm run selfhost:stop`。当前电脑没有 `pnpm` 也不影响运行，`npm` 可以直接执行这些项目脚本。
+
 ```bash
 npm run selfhost:stop
 npm run selfhost:public

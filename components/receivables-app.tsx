@@ -381,6 +381,7 @@ export function ReceivablesApp({
   return (
     <div
       className="app-shell"
+      data-view={view}
       key={`${data.session.role}:${data.session.districtId}`}
     >
       <a className="app-skip-link" href="#main-content">

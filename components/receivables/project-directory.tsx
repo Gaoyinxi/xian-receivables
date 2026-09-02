@@ -98,11 +98,6 @@ export function ProjectDirectory({
         <div className="lc-approved-title-row">
           <div>
             <h1>{archived ? '已归档项目' : '所有项目'}</h1>
-            <p>
-              {archived
-                ? '已结清项目仅逻辑归档，完整数据仍然保留。'
-                : '查看全部项目、当前应收状态与待处理事项。进入项目后继续使用业务 Tree 处理具体任务。'}
-            </p>
           </div>
           {!archived && (
             <div className="lc-approved-head-actions">

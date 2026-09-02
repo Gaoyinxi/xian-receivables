@@ -55,7 +55,6 @@ export function ProjectTaskRail({
       <div className="lc-task-rail-heading">
         <div>
           <h2 id="task-rail-title">付款节点任务链</h2>
-          <p>将鼠标悬停在节点上查看摘要，点击进入处理页。</p>
         </div>
         <span>{model.nodes.length} 个节点</span>
       </div>

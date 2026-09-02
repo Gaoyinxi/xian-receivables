@@ -73,7 +73,6 @@ export function WorkspaceNavigation({
         </span>
         <div>
           <strong>项目应收</strong>
-          <small className="app-brand-caption">应收生命周期工作台</small>
         </div>
       </div>
       {data?.session.role === 'CITY_ADMIN' && onNew ? (
@@ -130,21 +129,6 @@ export function WorkspaceNavigation({
           </>
         )}
       </nav>
-      {data?.projects.length ? (
-        <section className="lc-recent-projects" aria-label="最近项目">
-          <span>最近项目</span>
-          {data.projects.slice(0, 3).map((project) => (
-            <button
-              key={project.id}
-              type="button"
-              onClick={() => onOpen?.(project.id, 'overview')}
-            >
-              <i aria-hidden="true" />
-              <strong>{project.name}</strong>
-            </button>
-          ))}
-        </section>
-      ) : null}
       <div className="lc-sidebar-footer">
         {data ? (
           <div className="lc-sidebar-profile">

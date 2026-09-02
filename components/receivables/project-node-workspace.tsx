@@ -12,7 +12,11 @@ import {
 import type { BootstrapData, ReceivableRecord } from '@/lib/types';
 import { ProjectContract } from './project-contract';
 import { ProjectReceipts } from './project-money';
-import { ProjectAudit, ProjectCollections, ProjectNodes } from './project-records';
+import {
+  ProjectAudit,
+  ProjectCollections,
+  ProjectNodes,
+} from './project-records';
 import { ProjectRisk } from './project-risk';
 import { ProjectTimeline } from './project-timeline';
 import { RiskBadge, WriteoffBadge } from './design-system';
@@ -69,8 +73,12 @@ export function ProjectNodeWorkspace({
         </nav>
         <div className="lc-project-title">
           <div>
-            <p>{model.project.projectCode} · {model.project.name}</p>
-            <h1>第 {node.sequenceNo} 节点 · {node.paymentType}</h1>
+            <p>
+              {model.project.projectCode} · {model.project.name}
+            </p>
+            <h1>
+              第 {node.sequenceNo} 节点 · {node.paymentType}
+            </h1>
           </div>
           <div className="lc-project-badges">
             <RiskBadge item={node} />
@@ -102,7 +110,9 @@ export function ProjectNodeWorkspace({
         </div>
         <div className="lc-inline-actions">
           {next.kind === 'view' ? (
-            <span className="lc-table-note">当前节点已打开；无额外可执行操作。</span>
+            <span className="lc-table-note">
+              当前节点已打开；无额外可执行操作。
+            </span>
           ) : (
             <Button
               disabled={Boolean(confirmingId)}
@@ -114,12 +124,52 @@ export function ProjectNodeWorkspace({
             </Button>
           )}
           {canRegisterReceipt && (
-            <Button variant="outline" onClick={() => operations.onReceipt(node.id)}>
+            <Button
+              variant="outline"
+              onClick={() => operations.onReceipt(node.id)}
+            >
               登记实际回款
             </Button>
           )}
         </div>
       </div>
+      <section className="lc-node-context-grid" aria-label="节点关键信息">
+        <article className="lc-context-card lc-context-card--date">
+          <span className="lc-context-label">约定付款</span>
+          <strong>{node.dueDate}</strong>
+          <small>
+            {node.baselineDate} + {node.termDays} 天
+          </small>
+        </article>
+        <article className="lc-context-card lc-context-card--status">
+          <span className="lc-context-label">核销状态</span>
+          <strong>
+            {node.writeoffStatus === 'PAID'
+              ? '已结清'
+              : node.writeoffStatus === 'PARTIAL'
+                ? '部分回款'
+                : '未回款'}
+          </strong>
+          <small>
+            {node.confirmationStatus === 'CONFIRMED'
+              ? '应收已确认'
+              : '等待市级确认'}
+          </small>
+        </article>
+        <article className="lc-context-card lc-context-card--risk">
+          <span className="lc-context-label">风险提示</span>
+          <strong>
+            {node.overdueDays > 0
+              ? `逾期 ${node.overdueDays} 天`
+              : '当前无逾期'}
+          </strong>
+          <small>
+            {node.latestCollectionDate
+              ? `最近跟进 ${node.latestCollectionDate}`
+              : '尚无有效催收记录'}
+          </small>
+        </article>
+      </section>
       <main className="lc-node-detail" aria-label="付款节点详情">
         <ProjectNodes
           model={model}
@@ -159,7 +209,11 @@ export function ProjectNodeWorkspace({
         </details>
         <details className="lc-flow-details">
           <summary>项目资料、风险与审计</summary>
-          <ProjectContract model={model} session={data.session} onDone={onDone} />
+          <ProjectContract
+            model={model}
+            session={data.session}
+            onDone={onDone}
+          />
           <ProjectRisk
             model={model}
             data={data}
